@@ -1,4 +1,4 @@
-name: Publish CityRoute
+name: Build and publish CityRoute
 on:
   push:
     branches: [main]
@@ -7,23 +7,21 @@ on:
       - '.github/workflows/deploy-cityroute.yml'
   workflow_dispatch:
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 concurrency:
-  group: pages-cityroute
+  group: cityroute-static-publish
   cancel-in-progress: true
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout latest CityRoute source
+      - name: Checkout actual CityRoute source
         uses: actions/checkout@v4
       - name: Use Node 22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Verify JavaScript syntax
+      - name: Verify source and routes
         run: |
           node --check site-src/public/app.js
           node --check site-src/public/place-photos.js
@@ -31,30 +29,22 @@ jobs:
           node --check site-src/public/static-walks.js
           node --check site-src/public/ai-offline.js
           node --check site-src/scripts/build-pages.mjs
-      - name: Build portable latest CityRoute website
+          node --test site-src/tests/avoidance.mjs site-src/tests/itinerary.mjs
+      - name: Export static site to docs
         run: |
           node site-src/scripts/build-pages.mjs
-          test -s _site/index.html
-          test -s _site/app.js
-          test -s _site/place-photos.js
-          grep -q 'id="liveMap"' _site/index.html
-          grep -q 'id="rerollRoute"' _site/index.html
-          grep -q 'place-photos.js' _site/index.html
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-      - name: Upload website
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Publish website
-        id: deployment
-        uses: actions/deploy-pages@v4
+          test -s docs/index.html
+          test -s docs/app.js
+          test -s docs/place-photos.js
+          grep -q 'id="liveMap"' docs/index.html
+          grep -q 'id="rerollRoute"' docs/index.html
+          grep -q 'place-photos.js' docs/index.html
+      - name: Push latest site to docs folder
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f docs
+          if ! git diff --cached --quiet; then
+            git commit -m "publish: refreshed CityRoute site from latest sources"
+            git push
+          fi

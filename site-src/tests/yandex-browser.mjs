@@ -99,6 +99,7 @@ try{
  check(await page.locator('#startPoint').inputValue()==='55.735000,37.580000','Saved GPS start restored');
  await page.locator('label:has([name=routeMode][value=loop])').click({force:true});
  await page.locator('#buildReal').click();
+ await page.waitForFunction(()=>{const q=new URL(document.getElementById('yandexNav').href);return (q.searchParams.get('rtext')||'').split('~').length>=3;},{timeout:9000});
  link=new URL(await page.locator('#yandexNav').getAttribute('href'));
  const rtext=link.searchParams.get('rtext')?.split('~')||[];
  check(rtext.length>=3,'Round trip includes waypoints');
@@ -108,6 +109,7 @@ try{
  await page.locator('#startPoint').fill('Невский проспект, 28');
  await page.locator('#endPoint').fill('Дворцовая площадь');
  await page.locator('#buildReal').click();
+ await page.waitForFunction(()=>{const q=new URL(document.getElementById('yandexNav').href);return (q.searchParams.get('rtext')||'').includes('Санкт-Петербург');},{timeout:11000});
  link=new URL(await page.locator('#yandexNav').getAttribute('href'));
  check(link.searchParams.get('rtext')?.includes('Санкт-Петербург'),'Typed endpoints route in other cities');
  check(!errors.length,'No JS errors: '+errors.join('; '));

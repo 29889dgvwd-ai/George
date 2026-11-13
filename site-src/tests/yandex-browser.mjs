@@ -38,6 +38,7 @@ try{
  });
  const start=Date.now();
  await page.goto(origin+'/',{waitUntil:'domcontentloaded',timeout:20000});
+ await page.addStyleTag({content:'html{scroll-behavior:auto!important}'});
  await page.locator('#buildReal').waitFor({state:'visible'});
  check(await page.locator('script[src$="route-app.js"]').count()===1,'Route app is loaded');
  check(await page.locator('script[src="app.js"]').count()===0,'Old timed-out routing app is absent');
@@ -60,7 +61,7 @@ try{
  await page.locator('#endPoint').fill('Парк «Зарядье»');
  await page.locator('#budgetRange').evaluate(el=>{el.value='1500';el.dispatchEvent(new Event('input',{bubbles:true}))});
  check(await page.locator('#budgetAmount').inputValue()==='1500','Budget slider and input synchronized');
- await page.locator('#company-date').check();
+ await page.locator('label:has(#company-date)').click({force:true});
  check(await page.locator('[name=people][value="2"]').isChecked(),'Date is exactly two people');
  await page.locator('#buildReal').click();
  await page.waitForFunction(()=>document.getElementById('routeDetail')?.textContent?.includes('Точек'),{timeout:7000});

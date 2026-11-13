@@ -27,13 +27,15 @@ jobs:
           node --check site-src/public/postgres-client.js
           node --check site-src/public/postgres-ui.js
           node --check site-src/public/place-photos.js
+          node --check site-src/public/map-resilience.js
+          node --check site-src/public/distance-planner.js
           node --check site-src/public/itinerary.js
           node --check site-src/public/static-walks.js
           node --check site-src/public/ai-offline.js
           node --check site-src/scripts/build-pages.mjs
           mkdir -p site-src/dist
           cp site-src/public/avoidance.js site-src/public/itinerary.js site-src/public/app.js site-src/dist/
-          (cd site-src && node --test tests/avoidance.mjs tests/itinerary.mjs)
+          (cd site-src && node --test tests/avoidance.mjs tests/itinerary.mjs tests/distance-planner.mjs)
       - name: Export static site to docs
         run: |
           node site-src/scripts/build-pages.mjs
@@ -42,6 +44,8 @@ jobs:
           test -s docs/place-photos.js
           test -s docs/postgres-client.js
           test -s docs/postgres-ui.js
+          test -s docs/distance-planner.js
+          test -s docs/map-resilience.js
           grep -q 'id="postgresPanel"' docs/index.html
           grep -q 'id="liveMap"' docs/index.html
           grep -q 'id="rerollRoute"' docs/index.html

@@ -69,7 +69,7 @@ function syncPeople(){
 document.querySelectorAll('[name="company"]').forEach(input=>input.addEventListener('change',()=>{syncPeople();cancel();resetRoute()}));syncPeople();
 function syncRouteMode(){const loop=document.querySelector('[name="routeMode"]:checked').value==='loop';end.disabled=loop;end.placeholder=loop?tr('Вернёмся к началу','Return to start'):tr('Можно оставить пустым','Optional');cancel();resetRoute();status(loop?'Круговой маршрут вернёт тебя к началу.':'Маршрут закончится в другой точке.',loop?'This route returns to the start.':'This route ends at another point.')}
 document.querySelectorAll('[name="routeMode"]').forEach(input=>input.addEventListener('change',syncRouteMode));
-$('findPlacesTop').onclick=()=>$('nearbyPlaces').click();
+// Find Places button logic below opens the list and searches.
 const amount=$('budgetAmount'),range=$('budgetRange');function budget(v){const n=Math.max(0,Math.min(50000,Math.round(Number(v)/500)*500));amount.value=Number.isFinite(n)?n:0;range.value=amount.value}range.oninput=()=>budget(range.value);amount.oninput=()=>{if(amount.value!=='')range.value=Math.max(0,Math.min(50000,Number(amount.value)))};amount.onchange=()=>{if(amount.value!=='')budget(amount.value);else range.value=0};
 // Reject whole profane words without persistent messages or substring matches in addresses.
 const forbidden=/(^|[^\p{L}])(хуй\p{L}*|пизд\p{L}*|бляд\p{L}*|сука|ебать|ебан\p{L}*|мудак)(?=$|[^\p{L}])/iu;
@@ -156,10 +156,22 @@ function choosePlace(p){
  else if(chosen.length<3)chosen.push(p);else{status('Можно выбрать до трёх остановок. Сначала убери одну.','Choose up to three stops. Remove one first.',true);return}
  cancel();resetRoute();drawChosen();drawPlaces(nearby);status('Остановки выбраны. Нажми «Построить маршрут».','Stops selected. Click Build route.');
 }
+function backupPlaces(){
+ if(!/^(москва|moscow)/i.test(city.value.trim()))return [];
+ const catalog=window.CityRoutePlaces;
+ if(!catalog?.items)return [];
+ const anchor=points[0]&&start.value===points[0].label?points[0]:catalog.lookup(start.value)||{lat:55.7558,lng:37.6173};
+ return catalog.items.filter(p=>!pref('malls')||p.type!=='malls')
+ .sort((a,b)=>catalog.haversine(anchor,a)-catalog.haversine(anchor,b));
+}
+function filterPlaceQuery(places){
+ const q=window.CityRoutePlaces?.norm($('placeQuery')?.value||'')||String($('placeQuery')?.value||'').toLowerCase();
+ return q?places.filter(p=>(window.CityRoutePlaces?.norm(p.name+' '+(p.address||''))||p.name.toLowerCase()).includes(q)):places;
+}
 function renderPlacesList(places,limit=60){const list=$('placesList');list.replaceChildren();for(const p of places.slice(0,limit)){const row=document.createElement('div'),name=document.createElement('span'),button=document.createElement('button');name.textContent=p.name+' · '+(categoryLabel[p.category]||categoryLabel[p.type]||'Место');button.type='button';const selected=chosen.some(x=>x.id===p.id);button.textContent=selected?tr('Убрать','Remove'):tr('В маршрут','Add stop');button.setAttribute('aria-label',(selected?'Убрать: ':'В маршрут: ')+p.name);button.setAttribute('aria-pressed',String(selected));button.onclick=()=>choosePlace(p);row.append(name,button);list.append(row)}if(places.length>limit){const more=document.createElement('button');more.type='button';more.textContent=tr('Показать ещё места','Show more places');more.onclick=()=>{renderPlacesList(places,limit+60)};list.append(more)}if(!places.length)list.textContent=tr('Здесь пока нет загруженных мест этой категории.','No loaded places in this category.')}
 $('placeFilter').onchange=()=>drawPlaces(nearby);
 function drawPlaces(places){
- nearby=places;const visible=places.filter(p=>$('placeFilter').value==='all'||p.type===$('placeFilter').value||p.category===$('placeFilter').value);renderPlacesList(visible);if(poiLayer)map.removeLayer(poiLayer);poiLayer=L.layerGroup().addTo(map);
+ nearby=places;const visible=filterPlaceQuery(places).filter(p=>$('placeFilter').value==='all'||p.type===$('placeFilter').value||p.category===$('placeFilter').value);renderPlacesList(visible);if(poiLayer)map.removeLayer(poiLayer);poiLayer=L.layerGroup().addTo(map);
  const colors={parks:'#16866b',water:'#008bab',food:'#c57521',malls:'#8b48be',culture:'#b44c79',sights:'#4866bf',art:'#b44c79',books:'#916746'};
  for(const p of visible.slice(0,180)){
   const popup=document.createElement('div'),title=document.createElement('strong'),button=document.createElement('button');title.textContent=p.name;button.type='button';button.textContent=chosen.some(x=>x.id===p.id)?tr('Убрать остановку','Remove stop'):tr('Через это место','Visit this place');button.className='poi-choice';button.onclick=()=>choosePlace(p);popup.append(title,document.createElement('br'),button);
@@ -169,11 +181,38 @@ function drawPlaces(places){
  $('placesStatus').textContent=tr('Найдено '+visible.length+' мест. Добавь остановки кнопками в списке ниже (до 3).','Found '+visible.length+' places. Use Add stop in the list below (up to 3).');
  
 }
-$('nearbyPlaces').onclick=async(event)=>{
- cancel();const id=generation,abort=new AbortController();controller=abort;busy(true);$('placesStatus').textContent=tr('Ищем места…','Finding places…');
- try{const center=start.value.trim()?await resolve(start,0,abort.signal):map.getCenter();const places=await scenicPlaces(center,null,3,'all',abort.signal);if(id!==generation)return;drawPlaces(places);if(start.value.trim())map.setView(center,15);if(event?.isTrusted)scrollMap()}
- catch(e){if(id===generation)$('placesStatus').textContent=tr('Не удалось загрузить места. Попробуй ещё раз.','Could not load places. Try again.')}
- finally{if(id===generation){busy(false);controller=null}}
+$('findPlacesTop').onclick=()=>{
+ $('nearbyDisclosure').open=true;
+ $('nearbyPlaces').click();
+ $('nearbyDisclosure').scrollIntoView({behavior:'smooth',block:'start'});
+};
+$('placeQuery').oninput=()=>{
+ const query=$('placeQuery').value.trim();
+ $('openYandexSearch').href='https://yandex.ru/maps/?'+new URLSearchParams({text:(city.value.trim()||'Москва')+' '+query}).toString();
+ drawPlaces(nearby.length?nearby:backupPlaces());
+};
+$('nearbyPlaces').onclick=async()=>{
+ // Results are shown from the bundled catalog immediately, even with no internet.
+ $('nearbyDisclosure').open=true;
+ const instant=backupPlaces();
+ drawPlaces(instant);
+ if(instant.length)$('placesStatus').textContent=tr('Места загружены сразу. Проверяем другие варианты…','Nearby places shown instantly. Checking for additional places…');
+ cancel();const id=generation,abort=new AbortController();controller=abort;
+ const shortTimeout=setTimeout(()=>abort.abort('places-timeout'),6500);
+ try{
+  const center=points[0]&&start.value===points[0].label?points[0]:window.CityRoutePlaces?.lookup(start.value)||map.getCenter();
+  const fresh=await scenicPlaces(center,null,3,'all',abort.signal);
+  if(id!==generation)return;
+  const keys=new Set(fresh.map(p=>p.id));
+  const combined=[...fresh,...instant.filter(p=>!keys.has(p.id))];
+  drawPlaces(combined);
+  $('placesStatus').textContent=tr('Найдено мест: '+combined.length+'. Выбирай остановки в списке.','Found '+combined.length+' places. Select stops below.');
+ }catch(e){
+  if(id!==generation)return;
+  $('placesStatus').textContent=instant.length
+   ?tr('Показаны '+instant.length+' мест из встроенного каталога Москвы. Для полного поиска нажми «Полный поиск в Яндекс Картах».','Showing '+instant.length+' places from the Moscow starter catalogue. Use full Yandex search for more.')
+   :tr('Автопоиск мест недоступен для этого города. Открой полный поиск в Яндекс Картах.','Automatic places are unavailable for this city. Use full Yandex Maps search.');
+ }finally{clearTimeout(shortTimeout);if(id===generation){controller=null;busy(false)}}
 };
 function showScenic(places,note,layer){
  currentRoutePlaces=places;

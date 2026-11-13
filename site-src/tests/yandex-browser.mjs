@@ -40,7 +40,7 @@ try{
  await page.goto(origin+'/',{waitUntil:'domcontentloaded',timeout:20000});
  await page.locator('#buildReal').waitFor({state:'visible'});
  check(await page.locator('script[src$="route-app.js"]').count()===1,'Route app is loaded');
- check(await page.locator('script[src$="app.js"]').count()===0,'Old timed-out routing app is absent');
+ check(await page.locator('script[src="app.js"]').count()===0,'Old timed-out routing app is absent');
  check(await page.locator('[data-pick]').count()===0,'Unavailable map-edit buttons are gone');
  check(await page.locator('#yandexWidget').evaluate(el=>getComputedStyle(el).display!=='none'),'Yandex widget should be visible');
  check(await page.locator('#yandexWidget').getAttribute('src').then(s=>s.includes('yandex.ru')),'Yandex map URL');

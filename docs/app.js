@@ -195,7 +195,7 @@ async function build(surprise=false){
   function encodeLine(coords){let lastLat=0,lastLng=0,out='';for(const p of coords){const lat=Math.round(p[0]*1e6),lng=Math.round(p[1]*1e6);for(let x of [lat-lastLat,lng-lastLng]){x=x<0?~(x<<1):x<<1;while(x>=0x20){out+=String.fromCharCode((0x20|(x&0x1f))+63);x>>=5;}out+=String.fromCharCode(x+63)}lastLat=lat;lastLng=lng}return out}
   async function osrmWalking(waypoints){
     const coords=waypoints.map(p=>p.lng+','+p.lat).join(';');let err;
-    for(const endpoint of ['https://routing.openstreetmap.de/routed-foot/route/v1/driving/','https://router.project-osrm.org/route/v1/foot/']){
+    for(const endpoint of ['https://routing.openstreetmap.de/routed-foot/route/v1/driving/']){
       try{const url=endpoint+coords+'?overview=false&geometries=geojson&steps=true';const r=await fetch(url,{signal:AbortSignal.any([abort.signal,AbortSignal.timeout(11000)])});if(!r.ok)throw Error('OSRM HTTP '+r.status);const j=await r.json();if(j.code!=='Ok'||!j.routes?.[0]?.legs?.length)throw Error('No walking path');const best=j.routes[0];
        const legs=best.legs.map((leg,i)=>{const coords=[];for(const step of leg.steps||[]){for(const [lng,lat] of step.geometry?.coordinates||[]){const prev=coords.at(-1);if(!prev||Math.abs(prev[0]-lat)+Math.abs(prev[1]-lng)>1e-9)coords.push([lat,lng]);}}if(coords.length<2)throw Error('Missing walking geometry');return {shape:encodeLine(coords),summary:{length:leg.distance/1000,time:leg.duration}}});
        if(legs.length!==waypoints.length-1)throw Error('Missing walking segments');return {trip:{legs,summary:{length:best.distance/1000,time:best.duration}},avoidanceNote:'Резервный пешеходный маршрут; дополнительные обходы дорог и ТЦ не подтверждены.'};

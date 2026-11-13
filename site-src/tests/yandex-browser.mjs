@@ -10,73 +10,81 @@ const server=createServer(async(req,res)=>{
  try{
   const path=decodeURIComponent(new URL(req.url,'http://localhost').pathname);
   if(path.includes('..')){res.writeHead(403).end();return}
-  const target=join(root,path==='/'?'index.html':path);
-  const body=await readFile(target);
-  res.writeHead(200,{'content-type':types[extname(target)]||'application/octet-stream','cache-control':'no-store'});
-  res.end(body);
- }catch(e){res.writeHead(404).end('Not found')}
+  const target=join(root,path==='/'?'index.html':path),body=await readFile(target);
+  res.writeHead(200,{'content-type':types[extname(target)]||'application/octet-stream','cache-control':'no-store'});res.end(body);
+ }catch{res.writeHead(404).end('Not found')}
 });
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
-const port=server.address().port;
-const chrome=process.env.CHROME_PATH||'/usr/bin/google-chrome';
-let browser,errors=[];
-const encodeLine=(coords)=>{
- let lastLat=0,lastLon=0,s='';
- for(const [lat0,lon0] of coords){
-  const lat=Math.round(lat0*1e6),lon=Math.round(lon0*1e6);
-  for(let n of [lat-lastLat,lon-lastLon]){
-   n=n<0?~(n<<1):n<<1;
-   while(n>=32){s+=String.fromCharCode((32|(n&31))+63);n>>=5}
-   s+=String.fromCharCode(n+63);
-  }
-  lastLat=lat;lastLon=lon
- }
- return s
-};
+const base='http://127.0.0.1:'+server.address().port;
+const errors=[],forbidden=[];
+let browser;
+const check=(v,msg)=>assert(v,msg);
 try{
- browser=await chromium.launch({executablePath:chrome,args:['--no-sandbox','--disable-dev-shm-usage'],headless:true});
- const page=await browser.newPage({viewport:{width:390,height:844}});
- page.on('pageerror',e=>errors.push('browser JS: '+e.message));
- page.on('request',r=>{if(r.url().includes('tile.openstreetmap.org'))errors.push('unexpected OSM tiles')});
- await page.route('https://yandex.ru/**',r=>r.fulfill({status:200,contentType:'text/html',body:'<!doctype html><html lang="ru"><body>Yandex widget in smoke test</body></html>'}));
- await page.route('https://photon.komoot.io/**',async r=>{
-   const q=new URL(r.request().url()).searchParams.get('q')||'';
-   const end=q.includes('Зарядье');const c=end?[37.63,55.751]:[37.62,55.754];
-   await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({features:[{geometry:{coordinates:c}}]})});
+ browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'/usr/bin/google-chrome',args:['--no-sandbox','--disable-dev-shm-usage'],headless:true});
+ const context=await browser.newContext({viewport:{width:390,height:844},geolocation:{latitude:55.735,longitude:37.58,accuracy:13},permissions:['geolocation']});
+ const page=await context.newPage();
+ page.on('pageerror',e=>errors.push(e.message));
+ page.on('request',r=>{if(/tile\.openstreetmap\.org/.test(r.url()))forbidden.push(r.url())});
+ await page.route('**/*',r=>{
+  const url=r.request().url();
+  if(url.startsWith(base))return r.continue();
+  if(url.startsWith('https://yandex.ru/map-widget/'))return r.fulfill({status:200,contentType:'text/html',body:'<!doctype html><html><body>Yandex map widget</body></html>'});
+  return r.abort();
  });
- await page.route('https://valhalla1.openstreetmap.de/**',async r=>{
-   const q=JSON.parse(r.request().postData()||'{}');
-   const locations=q.locations||[];
-   const legs=locations.slice(1).map((end,i)=>{
-     const start=locations[i];
-     const shape=encodeLine([[start.lat,start.lon],[end.lat,end.lon]]);
-     return {shape,summary:{length:0.8,time:900}};
-   });
-   await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({trip:{legs,summary:{length:legs.length*0.8,time:legs.length*900}}})});
- });
- await page.goto('http://127.0.0.1:'+port+'/',{waitUntil:'domcontentloaded'});
- await page.locator('#buildReal').waitFor({state:'visible',timeout:12000});
- assert.equal(await page.locator('[data-pick]').count(),0,'No disabled map edit buttons');
- assert.equal(await page.locator('#toggleMap').count(),0,'No switch back to OSM');
- assert.equal(await page.locator('#yandexWidget').count(),1,'Yandex widget should exist');
- assert(await page.locator('#yandexWidget').getAttribute('src').then(v=>v.startsWith('https://yandex.ru/map-widget/v1/')));
- assert(await page.locator('body').evaluate(el=>el.classList.contains('yandex-widget-active')));
- assert(await page.locator('#yandexWidget').evaluate(el=>{const d=getComputedStyle(el);return d.display!=='none'&&Number.parseFloat(d.height)>300}),'Yandex map visible at mobile width');
- assert(await page.locator('#liveMap').evaluate(el=>getComputedStyle(el).display==='none'),'OSM editor hidden');
- await page.locator('#routeStyle').selectOption('direct');
- await page.locator('#startPoint').fill('Красная площадь');
- await page.locator('#endPoint').fill('Парк Зарядье');
+ await page.goto(base+'/',{waitUntil:'domcontentloaded',timeout:20000});
+ await page.addStyleTag({content:'html{scroll-behavior:auto!important}'});
+ check(await page.locator('#yandexWidget').isVisible(),'Yandex is visible on iPhone-sized browser');
+ check(await page.locator('#mapGPS').isVisible(),'Location control is visible beside map');
+ check(await page.locator('#toggleMap').count()===0,'No unwanted OSM toggle');
+ check(await page.locator('[data-pick]').count()===0,'No fake map click editor');
+ await page.locator('#mapGPS').click();
+ await page.waitForFunction(()=>document.getElementById('startPoint')?.value==='55.735000,37.580000',{timeout:7000});
+ check((await page.locator('#locationStatus').innerText()).includes('GPS'),'GPS success message');
+ const gpsFrame=new URL(await page.locator('#yandexWidget').getAttribute('src'));
+ check(gpsFrame.searchParams.get('ll')==='37.580000,55.735000','Yandex map centers exactly on GPS');
+ check(await page.locator('#locationOnMap').isVisible(),'Full Yandex location link available');
+ await page.locator('#findPlacesTop').click();
+ check(await page.locator('#nearbyDisclosure').evaluate(el=>el.open),'Nearby places section opened');
+ const count=await page.locator('#placesList > div').count();
+ check(count>=12,'Instant fallback places visible offline: '+count);
+ await page.locator('#placeQuery').fill('Парк');
+ const filtered=await page.locator('#placesList > div').count();
+ check(filtered>=1&&filtered<count,'Place search filters without server');
+ await page.locator('#placeQuery').fill('');
+ await page.locator('#placesList button').first().click();
+ check(await page.locator('#chosenStops button').count()===1,'Choose stop works');
+ await page.locator('#endPoint').fill('Парк Горького');
  await page.locator('#buildReal').click();
- await page.waitForFunction(()=>document.getElementById('routeDetail')?.textContent?.includes('км'),{timeout:15000});
- const href=await page.locator('#yandexNav').getAttribute('href');
- const frame=await page.locator('#yandexWidget').getAttribute('src');
- assert.equal(new URL(frame).origin,'https://yandex.ru');
- assert(new URL(frame).searchParams.get('rtext')?.includes('~'),'Yandex iframe shows route stops');
- assert.equal(new URL(frame).searchParams.get('rtt'),'pd','Walking profile only');
- assert(new URL(href).searchParams.get('rtext')?.includes('~'),'External Yandex directions link has route');
- assert.equal(await page.locator('#rerollRoute').isVisible(),true,'Alternate route button shown');
- assert.equal(errors.length,0,errors.join('\n'));
- console.log('PASS: Yandex is sole visible map, no OSM tiles or map-editor controls, routing updates Yandex iframe and link.');
+ await page.locator('.cityroute-map-cta').waitFor({state:'visible',timeout:5000});
+ let link=new URL(await page.locator('#yandexNav').getAttribute('href'));
+ check(link.searchParams.get('rtt')==='pd','Pedestrian route');
+ check(link.searchParams.get('rtext')?.includes('55.735'),'GPS coordinates included in Yandex walking route');
+ check(await page.locator('.cityroute-quick-stops li').count()>=2,'Stops appear in itinerary');
+ check(await page.locator('#rerollRoute').isVisible(),'Route variant button is visible');
+ await page.locator('.cityroute-save-route').click();
+ check((await page.evaluate(()=>JSON.parse(localStorage.getItem('cityroute-saved-itineraries-v1')||'[]')))[0]?.v===3,'Save works');
+ await page.goto(base+'/walks.html',{waitUntil:'domcontentloaded'});
+ check(await page.locator('.saved-route').count()>=1,'Saved route visible in My Walks');
+ await page.locator('.saved-route .saved-actions button').first().click();
+ await page.waitForURL(/index\.html/);
+ await page.locator('.cityroute-map-cta').waitFor({state:'visible'});
+ check(await page.locator('#startPoint').inputValue()==='55.735000,37.580000','Saved GPS start restored');
+ await page.locator('label:has([name=routeMode][value=loop])').click({force:true});
+ await page.locator('#buildReal').click();
+ link=new URL(await page.locator('#yandexNav').getAttribute('href'));
+ const rtext=link.searchParams.get('rtext')?.split('~')||[];
+ check(rtext.length>=3,'Round trip includes waypoints');
+ check(rtext[0]===rtext.at(-1),'Round trip ends at start');
+ await page.locator('label:has([name=routeMode][value=oneway])').click({force:true});
+ await page.locator('#city').fill('Санкт-Петербург');
+ await page.locator('#startPoint').fill('Невский проспект, 28');
+ await page.locator('#endPoint').fill('Дворцовая площадь');
+ await page.locator('#buildReal').click();
+ link=new URL(await page.locator('#yandexNav').getAttribute('href'));
+ check(link.searchParams.get('rtext')?.includes('Санкт-Петербург'),'Typed endpoints route in other cities');
+ check(!errors.length,'No JS errors: '+errors.join('; '));
+ check(!forbidden.length,'No OSM raster tiles loaded');
+ console.log('PASS: real GPS, precise Yandex center, fast offline place search, itinerary, save/restore, round trip, other cities and map controls.');
 }finally{
  await browser?.close();
  await new Promise(resolve=>server.close(resolve));

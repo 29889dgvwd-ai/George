@@ -106,3 +106,32 @@ body.yandex-widget-active .map-card.expanded-map .journey-layout{min-height:0}
  body.yandex-widget-active .map-tools{margin-left:auto}
  body.yandex-widget-active .map-toolbar>a#yandexNav{font-size:12px;padding:8px 10px}
 }
+
+/* Yandex-only map improvements, live GPS state, searchable places, quick routes */
+.location-state{min-height:22px;line-height:1.5;max-width:580px;overflow-wrap:anywhere;padding-top:4px}
+.location-action{display:inline-flex;align-items:center;min-height:30px;text-decoration:none;font-size:12px;font-weight:700;color:var(--accent)}
+.location-action:hover{text-decoration:underline}
+.map-gps-button{background:#ecf4ff!important;color:#154eb8!important;border-color:#c9dcfc!important;font-size:13px!important;font-weight:750!important}
+.map-gps-button[aria-busy="true"],#locateReal[aria-busy="true"]{opacity:.6;cursor:progress}
+.place-query-label{display:block;margin:12px 0 7px;font-size:13px;font-weight:750}
+#placeQuery{width:100%;min-height:42px;padding:10px 13px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);font:inherit}
+#placeQuery:focus{outline:2px solid #557ee4;outline-offset:2px}
+.map-search-link{display:inline-flex;font-size:12px;font-weight:750;text-decoration:none;color:var(--accent);padding:10px 0 14px}
+.cityroute-quick-stops{display:flex;flex-direction:column;gap:9px;margin:15px 0;padding-left:29px;font-size:14px;line-height:1.55;overflow-wrap:anywhere}
+.cityroute-quick-stops li{padding-left:5px}
+.cityroute-map-cta{display:inline-flex!important;align-items:center;justify-content:center;width:100%;max-width:none!important;margin:14px 0 5px;text-align:center;text-decoration:none;font-weight:800;font-size:14px}
+.cityroute-save-route{display:inline-flex;width:100%;justify-content:center;margin:10px 0;padding:11px}
+.cityroute-save-route[disabled]{opacity:.7}
+.quick-saved-panel{padding:24px}
+.quick-saved-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;padding:18px 0 0}
+.quick-saved-list button{width:100%;text-align:left;min-height:48px;overflow-wrap:anywhere}
+body.yandex-widget-active .map-shell{background:#e9eef7}
+body.yandex-widget-active .map-shell iframe{width:100%;height:100%;touch-action:auto}
+body.yandex-widget-active .map-shell iframe:focus-visible{outline:3px solid #4f7aea}
+@media(max-width:680px){
+ body.yandex-widget-active .map-toolbar{flex-wrap:wrap;gap:9px}
+ body.yandex-widget-active .map-tools{display:flex;justify-content:flex-end;flex:1}
+ body.yandex-widget-active .map-tools button{white-space:nowrap}
+ .map-gps-button{padding:8px 9px!important;font-size:12px!important}
+ .quick-saved-panel{padding:16px}
+}

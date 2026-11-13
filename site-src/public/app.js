@@ -296,8 +296,22 @@ function buildOnYandex(surprise=false){
  const list=document.createElement('ol');list.className='cityroute-quick-stops';
  for(const point of waypoints){const li=document.createElement('li');li.textContent=typeof point==='string'?point:point.name||point.label||point.lat.toFixed(6)+','+point.lng.toFixed(6);list.append(li)}
  panel.append(list);
+ const saveQuick=document.createElement('button');saveQuick.type='button';saveQuick.className='secondary cityroute-save-route';
+ saveQuick.textContent=tr('♡ Сохранить прогулку','♡ Save this walk');
+ saveQuick.onclick=()=>{
+  try{
+   const key='cityroute-saved-itineraries-v1';
+   const all=JSON.parse(localStorage.getItem(key)||'[]');
+   const entry={v:3,id:crypto.randomUUID?.()||String(Date.now()),city:city.value.trim()||'Москва',start:source,finish:end.value.trim(),loop,style,stops:extras,waypoints};
+   const next=[entry,...(Array.isArray(all)?all:[])].slice(0,30);
+   localStorage.setItem(key,JSON.stringify(next));
+   $('saveStatus').textContent=tr('✓ Сохранено. Открой раздел «Мои прогулки».','✓ Saved. Open My walks.');
+   saveQuick.disabled=true;saveQuick.textContent=tr('Сохранено ✓','Saved ✓');
+   renderQuickSaved();
+  }catch(e){$('saveStatus').textContent=tr('Браузер не разрешил сохранить маршрут.','This browser could not save the route.')}
+ };
  const action=document.createElement('a');action.className='primary inline-link cityroute-map-cta';action.href=$('yandexNav').href;action.target='_blank';action.rel='noopener noreferrer';
- action.textContent=tr('Открыть пеший маршрут ↗','Open walking directions ↗');panel.append(action);
+ action.textContent=tr('Открыть пеший маршрут ↗','Open walking directions ↗');panel.append(action,saveQuick);
  if(extras.length)showScenic(extras,tr('Места подобраны по предпочтениям. Точный путь и обходы улиц проверяй в Яндексе.','Stops are suggested by preferences. Check street routing and detours in Yandex.'));
  if(document.querySelector('[name="transport"]:checked')?.value==='transit'){
   const box=$('transportResult');box.hidden=false;box.replaceChildren();
@@ -310,6 +324,25 @@ function buildOnYandex(surprise=false){
  status('Маршрут готов. На карте — Яндекс; время и длину показывает Яндекс.','Route ready in Yandex Maps, including walking time and distance.');
  scrollMap();
  return true;
+}
+function renderQuickSaved(){
+ const box=$('quickSavedRoutes');if(!box)return;
+ box.replaceChildren();
+ let list=[];try{list=JSON.parse(localStorage.getItem('cityroute-saved-itineraries-v1')||'[]')}catch{}
+ for(const route of (Array.isArray(list)?list:[]).filter(r=>r.v===3).slice(0,8)){
+  const a=document.createElement('button');a.type='button';a.className='secondary';
+  a.textContent=(route.start||tr('Маршрут','Route'))+' → '+(route.loop?tr('к началу','start'):(route.finish||route.stops?.at(-1)?.name||tr('финиш','finish')));
+  a.onclick=()=>openQuickSaved(route);box.append(a);
+ }
+}
+function openQuickSaved(r){
+ if(!r||r.v!==3||!Array.isArray(r.waypoints))return;
+ city.value=r.city||'Москва';start.value=r.start||'';end.value=r.finish||'';
+ const mode=document.querySelector('[name=routeMode][value="'+(r.loop?'loop':'oneway')+'"]');if(mode)mode.checked=true;
+ end.disabled=!!r.loop;chosen=Array.isArray(r.stops)?r.stops:[];drawChosen();
+ points=[null,null];
+ const first=r.waypoints[0];if(first&&typeof first==='object'&&Number.isFinite(first.lat)&&Number.isFinite(first.lng))points[0]={lat:first.lat,lng:first.lng,label:start.value};
+ buildOnYandex(false);
 }
 async function build(surprise=false){
  if(buildOnYandex(surprise))return;
@@ -521,8 +554,8 @@ itinerary=window.CityRouteItinerary.create({decode,tr,focus:p=>{const u=new URL(
  points=[null,null];r.points.forEach((p,i)=>{if(p)mark(i,p,p.label)});
  const path=pathOf(r.data);routeLayer=L.featureGroup([L.polyline(path,{color:'#315bea',weight:6})]);showScenic(r.places,r.note,routeLayer);if(r.transit)showTransport(r.data,r.places,r.loop);currentRoutePath=path;updateYandex();showWalkingMap();$('rerollRoute').hidden=false;$('routeDetail').textContent=r.data.trip.summary.length.toFixed(1)+' '+tr('км','km');status('Открыт сохранённый маршрут.','Saved route opened.');scrollMap();
 }});
-try{const raw=sessionStorage.getItem('cityroute-open-walk');if(raw){sessionStorage.removeItem('cityroute-open-walk');const saved=JSON.parse(raw);if(window.CityRouteItinerary.valid(saved))itinerary.open(saved);}}catch{status('Не удалось открыть сохранённый маршрут.','Could not open saved route.',true);}
-showWalkingMap();status('Нужна только начальная точка.','Only a starting point is needed.');
+try{const raw=sessionStorage.getItem('cityroute-open-walk');if(raw){sessionStorage.removeItem('cityroute-open-walk');const saved=JSON.parse(raw);if(saved?.v===3)openQuickSaved(saved);else if(window.CityRouteItinerary.valid(saved))itinerary.open(saved);}}catch{status('Не удалось открыть сохранённый маршрут.','Could not open saved route.',true);}
+showWalkingMap();renderQuickSaved();if(!$('routeDetail').textContent)status('Нужна только начальная точка.','Only a starting point is needed.');
 // A Yandex iframe needs no JavaScript API key, but cannot forward its clicks to CityRoute.
 // Keep the verified route link accessible even if a browser blocks embedding.
 })();

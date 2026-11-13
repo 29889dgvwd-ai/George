@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+const context={window:{}};vm.createContext(context);vm.runInContext(fs.readFileSync('dist/itinerary.js','utf8'),context);
+const {model,valid}=context.window.CityRouteItinerary;
+const shapes={a:[[55,37],[55.001,37]],b:[[55.001,37],[55,37]],c:[[55.001,37],[55.002,37]]};
+const r={city:'Москва',points:[{lat:55,lng:37,label:'Старт'},null],places:[{name:'Парк',lat:55.001,lng:37,routePoint:[55.001,37]}],loop:true,data:{trip:{summary:{length:0.2,time:180},legs:[{shape:'a',summary:{length:0.1,time:90}},{shape:'b',summary:{length:0.1,time:90}}]}}};
+assert(valid(r));let m=model(r,s=>shapes[s]);assert.equal(m.steps[0].place.name,'Парк');assert.equal(m.steps[1].place.name,'Старт');assert.equal(m.steps[1].elapsed,180);
+r.loop=false;r.points[1]={lat:55.002,lng:37,label:'Финиш'};r.data.trip.legs[1].shape='c';m=model(r,s=>shapes[s]);assert.equal(m.steps[1].place.name,'Финиш');
+r.data.trip.legs.pop();r.points[1]={lat:55.001,lng:37,label:'Автоматический финиш'};m=model(r,s=>shapes[s]);assert.equal(m.steps[0].place.name,'Парк');assert.equal(m.steps.length,1);
+r.places=[];delete r.data.trip.legs[0].summary;assert.equal(model(r,s=>shapes[s]).steps[0].seconds,null);assert.equal(model(r,s=>shapes[s]).steps[0].elapsed,null);
+assert(!valid({}));assert(!valid({...r,data:{trip:{legs:[{shape:1}],summary:{length:1,time:2}}}}));
+console.log('Itinerary: loop, one-way, automatic finish, missing times, saved-data checks passed.');

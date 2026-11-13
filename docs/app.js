@@ -248,6 +248,8 @@ function buildOnYandex(surprise=false){
   status('Введи адрес начала или нажми «Моё положение».','Enter a starting address or select My location.',true);
   start.setAttribute('aria-invalid','true');start.focus();return true;
  }
+ // On the free static site, text wishes adjust filters locally before stop selection.
+ void window.CityRouteAI?.apply();
  const local=window.CityRoutePlaces,moscow=/^(москва|moscow)/i.test(city.value.trim());
  const loop=document.querySelector('[name="routeMode"]:checked')?.value==='loop';
  const style=$('routeStyle').value;

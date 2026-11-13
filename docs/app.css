@@ -170,3 +170,36 @@ body.yandex-widget-active .map-shell iframe:focus-visible{outline:3px solid #4f7
  .postgres-route{align-items:stretch;flex-direction:column}
  .postgres-route-actions button{flex:1}
 }
+
+
+/* CityRoute: readable step-by-step route and nearby places gallery (November 2026). */
+.cityroute-quick-stops.cityroute-step-plan{list-style:none;margin:18px 0 22px;padding:0 8px 0 2px;gap:0;display:flex;flex-direction:column}
+.cityroute-step{display:grid;grid-template-columns:42px minmax(0,1fr);gap:9px;align-items:start;position:relative;padding:0 0 17px!important;margin:0}
+.cityroute-step:not(:last-child)::before{content:"";position:absolute;left:18px;top:37px;bottom:-1px;border-left:2px dashed var(--accent);opacity:.45}
+.cityroute-step-marker{display:grid;place-items:center;width:38px;height:38px;border-radius:13px;background:#17191e;color:#fff;font-weight:900;font-size:14px;z-index:1}
+.cityroute-step:first-child .cityroute-step-marker{background:#178267}
+.cityroute-step:last-child .cityroute-step-marker{background:#4361ed}
+.cityroute-step-body{min-width:0;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px 12px;overflow-wrap:anywhere}
+.cityroute-step-body>strong{display:block;font-size:14px;line-height:1.4}
+.cityroute-step-body>small{display:block;color:var(--muted);font-size:12px;margin:3px 0}
+.cityroute-step-leg{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-top:8px}
+.cityroute-step-leg>a{font-size:12px;font-weight:750;text-decoration:none;color:var(--accent);border-bottom:1px solid currentColor}
+.cityroute-step-leg>span{font-size:11px;color:var(--muted)}
+.quick-journey-title{padding:19px 20px 0;margin:0;font-size:22px;line-height:1.2}
+.itinerary-panel>.field-note{padding:0 20px}
+.itinerary-panel>.cityroute-step-plan{padding-left:20px;padding-right:20px}
+.itinerary-panel>.cityroute-map-cta,.itinerary-panel>.cityroute-save-route{width:calc(100% - 40px);margin-left:20px;margin-right:20px}
+.places-list{grid-template-columns:repeat(2,minmax(0,1fr));max-height:460px;gap:10px;padding:3px 2px 10px}
+.places-list>.place-list-card{display:grid;grid-template-columns:94px minmax(0,1fr);align-items:stretch;gap:12px;padding:0;min-width:0;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;min-height:112px}
+.place-list-media{height:100%;min-height:112px;width:94px;display:flex;align-items:center;justify-content:center;position:relative;background:var(--soft);color:var(--muted);overflow:hidden}
+.place-list-media>span{font-size:28px}
+.place-list-media>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center}
+.place-list-copy{padding:10px 10px 10px 0;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:5px}
+.place-list-copy>strong{font-size:13px;line-height:1.35;overflow-wrap:anywhere}
+.place-list-copy>small{color:var(--muted);font-size:11px;overflow-wrap:anywhere}
+.place-list-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.places-list .place-list-actions button{font-size:11px;padding:6px 8px;font-weight:750}
+.place-list-actions>a{font-size:11px;font-weight:650;text-decoration:none;color:var(--accent)}
+.places-list>.place-list-more{grid-column:1/-1;text-align:center;min-height:46px;margin-bottom:4px}
+@media(max-width:900px){.places-list{grid-template-columns:1fr}.places-list>.place-list-card{grid-template-columns:90px minmax(0,1fr)}.place-list-media{width:90px}}
+@media(max-width:760px){.places-list{max-height:420px}.quick-journey-title{font-size:20px}}

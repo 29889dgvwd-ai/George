@@ -24,6 +24,9 @@ jobs:
       - name: Verify source and routes
         run: |
           node --check site-src/public/app.js
+          node --check site-src/public/places-data.js
+          node --check site-src/public/route-app.js
+          node --check site-src/public/static-shell.js
           node --check site-src/public/place-photos.js
           node --check site-src/public/itinerary.js
           node --check site-src/public/static-walks.js

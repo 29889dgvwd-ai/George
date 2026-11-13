@@ -115,7 +115,14 @@ async function saveFavorite(place){
   category:txt(place.category||place.type||'Другое',60),
   latitude:Number(place.lat),longitude:Number(place.lng)};
  if(!Number.isFinite(p.latitude)||!Number.isFinite(p.longitude))throw Error('Не указаны координаты места.');
- return request('/rest/v1/favorites?on_conflict=owner_id,place_id',{method:'POST',body:[p],auth:true,prefer:'resolution=merge-duplicates,return=representation'})
+ if(p.place_id){
+  const prior=await request('/rest/v1/favorites?select=id&place_id=eq.'+encodeURIComponent(p.place_id)+'&limit=1',{auth:true});
+  if(Array.isArray(prior)&&prior[0]?.id){
+   const patch={place_name:p.place_name,category:p.category,latitude:p.latitude,longitude:p.longitude};
+   return request('/rest/v1/favorites?id=eq.'+encodeURIComponent(prior[0].id),{method:'PATCH',auth:true,body:patch,prefer:'return=representation'})
+  }
+ }
+ return request('/rest/v1/favorites',{method:'POST',body:[p],auth:true,prefer:'return=representation'})
 }
 async function readSettings(){
  const rows=await request('/rest/v1/cityroute_settings?select=theme,language,home_city,preferences&limit=1',{auth:true});

@@ -1,0 +1,20 @@
+name: Check live Yandex map embed
+on:
+  push:
+    paths:
+      - '.github/workflows/verify-yandex-runtime.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test actual external Yandex map endpoints
+        run: |
+          set +e
+          for url in 'https://yandex.ru/map-widget/v1/?ll=37.6173%2C55.7558&z=14&lang=ru_RU' 'https://yandex.ru/map-widget/v1/?rtext=55.735%2C37.580~55.752%2C37.629&rtt=pd&lang=ru_RU' 'https://yandex.ru/maps/?rtext=55.735%2C37.58~55.752%2C37.629&rtt=pd'; do
+            echo "Checking $url"
+            curl -L -s -S --max-time 25 -o /tmp/yandex -w 'STATUS=%{http_code} TYPE=%{content_type} FINAL=%{url_effective} SIZE=%{size_download}\n' "$url"
+            head -c 180 /tmp/yandex | tr '\n' ' ';echo
+          done

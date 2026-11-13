@@ -16,7 +16,7 @@ function updateYandex(){
  const fmt=p=>{
   if(typeof p==='string'){
    const value=p.trim();if(!value)return '';
-   if(/^[-+]?\\d+\\.\\d+,\\s*[-+]?\\d+\\.\\d+$/.test(value))return value.replace(/\\s+/g,'');
+   if(/^[-+]?\d+\.\d+,\s*[-+]?\d+\.\d+$/.test(value))return value.replace(/\s+/g,'');
    return /москва|moscow/i.test(value)?value:(city.value.trim()||'Москва')+', '+value;
   }
   return coord(p).every(Number.isFinite)?coord(p).join(','):'';
@@ -26,7 +26,7 @@ function updateYandex(){
  const stops=yandexFallbackStops?.length?yandexFallbackStops
   :currentRoutePath.length?[currentRoutePath[0],...currentRoutePlaces.map(p=>coord(p.routePoint||p)),currentRoutePath.at(-1)]
   :[GPS||start.value,...(end.value.trim()&&!end.disabled?[endPoint||end.value]:[])].filter(Boolean);
- const list=stops.map(fmt).filter(Boolean),hasCoords=list.length===1&&/^[-+]?\\d+\\.\\d+,[-+]?\\d+\\.\\d+$/.test(list[0]);
+ const list=stops.map(fmt).filter(Boolean),hasCoords=list.length===1&&/^[-+]?\d+\.\d+,[-+]?\d+\.\d+$/.test(list[0]);
  const params=new URLSearchParams({lang:english()?'en_RU':'ru_RU'});
  if(list.length>1){params.set('rtext',list.join('~'));params.set('rtt','pd')}
  else if(hasCoords){const [lat,lng]=list[0].split(',');params.set('ll',lng+','+lat);params.set('z','17')}
@@ -85,7 +85,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('mapSection').cla
 for(const field of [$('distance'),$('routeStyle'),$('walkTime')])field.onchange=()=>{cancel();resetRoute()};
 async function json(url,signal){const r=await fetch(url,{signal:AbortSignal.any([signal,AbortSignal.timeout(10000)])});if(!r.ok)throw Error(r.status===429?tr('Сервис занят. Попробуй через минуту.','Service is busy. Try again in a minute.'):tr('Сервис маршрутов временно недоступен. Попробуй ещё раз.','Routing service is temporarily unavailable. Try again.'));return r.json()}
 async function resolve(field,i,signal){const raw=field.value.trim();if(points[i]?.label===raw)return points[i];
- const literal=raw.match(/^\\s*([-+]?\\d{1,2}\\.\\d{3,})\\s*,\\s*([-+]?\\d{1,3}\\.\\d{3,})\\s*$/);
+ const literal=raw.match(/^\s*([-+]?\d{1,2}\.\d{3,})\s*,\s*([-+]?\d{1,3}\.\d{3,})\s*$/);
  if(literal){const lat=Number(literal[1]),lng=Number(literal[2]);if(Math.abs(lat)<=90&&Math.abs(lng)<=180)return {lat,lng,label:raw};}
  const known=window.CityRoutePlaces?.lookup(raw);if(known&&/^(москва|moscow)/i.test(city.value.trim()))return {lat:known.lat,lng:known.lng,label:raw};
  const key=(city.value.trim()||'Москва')+'|'+raw;if(cache.has(key))return cache.get(key);

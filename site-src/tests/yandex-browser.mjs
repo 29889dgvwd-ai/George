@@ -87,10 +87,10 @@ try{
  const points=new URL(loop).searchParams.get('rtext')?.split('~')||[];
  check(points.length>=3,'Round trip includes intermediate place');
  check(points[0]===points.at(-1),'Round trip finishes at its starting point');
+ await page.locator('[name=routeMode][value=oneway]').check();
  await page.locator('#city').fill('Санкт-Петербург');
  await page.locator('#startPoint').fill('Невский проспект, 28');
  await page.locator('#endPoint').fill('Дворцовая площадь');
- await page.locator('[name=routeMode][value=oneway]').check();
  await page.locator('#buildReal').click();
  const other=new URL(await page.locator('#yandexNav').getAttribute('href')).searchParams.get('rtext');
  check(other.includes('Санкт-Петербург'),'Other cities still allow direct address routing');

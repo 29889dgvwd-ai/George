@@ -232,3 +232,19 @@ body.yandex-widget-active .map-shell iframe:focus-visible{outline:3px solid #4f7
 .place-photo-license{position:absolute;left:9px;bottom:8px;z-index:3;font-size:10px;line-height:1.3;text-decoration:none;background:#111a27d9;color:#fff!important;padding:5px 8px;border-radius:7px;max-width:calc(100% - 18px)}
 .place-photo-thumbs~.place-photo-license{bottom:56px}
 .place-photo-license:focus-visible{outline:2px solid white}
+
+/* CityRoute November 13: clear detour warnings, verified bills and embedded stop photos */
+.route-distance-alert{border:1px solid #f2c578;border-radius:16px;background:#fff6e7;margin:14px 20px;padding:16px;color:#6a4308}
+.route-distance-alert strong{font-size:15px;font-weight:850}
+.route-distance-alert p{margin:7px 0 14px;font-size:13px;line-height:1.55}
+.route-distance-alert button{width:100%;border:0;border-radius:12px;padding:12px 14px;font-size:13px;font-weight:800;white-space:normal}
+.dark .route-distance-alert{background:#3d2b17;border-color:#a47734;color:#ffdda6}
+.cityroute-stop-price{font-size:13px;font-weight:750;color:var(--text);margin:8px 0 2px}
+.cityroute-price-source{font-size:11px;color:var(--accent);text-decoration:none;display:inline-flex;align-self:start}
+.cityroute-step-media{display:flex;flex-wrap:wrap;align-items:center;gap:7px 10px;margin:10px 0 4px}
+.cityroute-step-media img{width:76px;height:60px;object-fit:cover;object-position:center;flex:none;border-radius:9px;background:var(--soft)}
+.cityroute-step-media>a{font-size:12px;line-height:1.3;font-weight:750;text-decoration:none;color:var(--accent)}
+.place-list-price{font-size:11px;color:var(--text);font-weight:750}
+.place-photo-info .place-photo-bill{color:var(--text);font-size:12px;font-weight:800;margin:4px 0}
+.place-photo-info .place-photo-bill-source{font-size:11px;font-weight:700;color:var(--accent);display:inline-flex;text-decoration:none;margin:3px 0 8px}
+@media(max-width:760px){.route-distance-alert{margin:10px 12px;padding:13px}}

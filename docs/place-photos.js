@@ -117,7 +117,18 @@ function render(places,root,{tr,focus}){
   const map=node('button','place-photo-link',tr('Показать точку ↗','Show on map ↗'));map.type='button';map.onclick=()=>focus(p);
   const yandex=node('a','place-photo-link',tr('Фотографии и отзывы в Яндексе ↗','Photos and reviews on Yandex ↗'));
   yandex.href=locationUrl(p);yandex.target='_blank';yandex.rel='noopener noreferrer';
-  links.append(map,yandex);details.append(count,title,meta,links);card.append(media,details);root.append(card);
+  links.append(map,yandex);
+  if(p.type==='food'){
+   const bill=node('p','place-photo-bill',p.check?.label?tr('Средний чек: ','Average bill: ')+p.check.label:tr('Средний чек не указан','Average bill: not available'));
+   details.append(count,title,meta,bill);
+   if(p.check?.source){
+    const provenance=node('a','place-photo-bill-source',tr('Откуда цена ↗','Price source ↗'));
+    provenance.href=p.check.source;provenance.target='_blank';provenance.rel='noopener noreferrer';
+    details.append(provenance);
+   }
+   details.append(links);
+  }else details.append(count,title,meta,links);
+  card.append(media,details);root.append(card);
   photos(p).then(urls=>{
    if(!card.isConnected)return;
    if(!urls.length){caption.textContent=tr('Нет подтверждённого фото. Открой галерею в Яндексе.','No verified photos. Open this location in Yandex.');return}

@@ -692,7 +692,7 @@ function locateActual(){
   const coords=p.lat.toFixed(6)+','+p.lng.toFixed(6);
   mark(0,p,coords);lastLocated=p;
   const accuracy=Math.round(Number(pos.coords.accuracy)||0);
-  $('locationStatus').textContent=tr('✓ Местоположение: '+coords+' · точность '+accuracy+' м. Это начало прогулки.','✓ GPS: '+coords+' · accuracy '+accuracy+' m. Start point selected.');
+  $('locationStatus').textContent=tr('✓ GPS: '+coords+' · точность '+accuracy+' м. Это начало прогулки.','✓ GPS: '+coords+' · accuracy '+accuracy+' m. Start point selected.');
   const url=new URL('https://yandex.ru/maps/');
   url.search=new URLSearchParams({ll:p.lng.toFixed(6)+','+p.lat.toFixed(6),z:'17',lang:english()?'en_RU':'ru_RU'}).toString();
   $('locationOnMap').href=url.href;$('locationOnMap').hidden=false;

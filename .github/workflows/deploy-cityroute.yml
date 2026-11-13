@@ -29,7 +29,9 @@ jobs:
           node --check site-src/public/static-walks.js
           node --check site-src/public/ai-offline.js
           node --check site-src/scripts/build-pages.mjs
-          node --test site-src/tests/avoidance.mjs site-src/tests/itinerary.mjs
+          mkdir -p site-src/dist
+          cp site-src/public/avoidance.js site-src/public/itinerary.js site-src/public/app.js site-src/dist/
+          (cd site-src && node --test tests/avoidance.mjs tests/itinerary.mjs)
       - name: Export static site to docs
         run: |
           node site-src/scripts/build-pages.mjs

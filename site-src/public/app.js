@@ -35,7 +35,7 @@ function updateYandex(){
  const link=new URL('https://yandex.ru/maps/');link.search=params.toString();
  $('yandexNav').href=link.href;
  const frame=new URL('https://yandex.ru/map-widget/v1/');frame.search=params.toString();
- if($('yandexWidget').src!==frame.href)$('yandexWidget').src=frame.href;
+ clearTimeout(updateYandex.reload);updateYandex.reload=setTimeout(()=>{if($('yandexWidget').src!==frame.href)$('yandexWidget').src=frame.href;},420);
 }
 // Yandex iframe: clicking/dragging a point is not exposed to this site without Yandex JS API key.
 // Start and destination are edited through text inputs or the explicit geolocation button.
@@ -74,9 +74,8 @@ const amount=$('budgetAmount'),range=$('budgetRange');function budget(v){const n
 // Reject whole profane words without persistent messages or substring matches in addresses.
 const forbidden=/(^|[^\p{L}])(хуй\p{L}*|пизд\p{L}*|бляд\p{L}*|сука|ебать|ебан\p{L}*|мудак)(?=$|[^\p{L}])/iu;
 for(const f of [city,start,end,$('gptNotes')]){let clean=f.value;f.addEventListener('input',()=>{if(forbidden.test(f.value))f.value=clean;else clean=f.value})}
-if(!window.L){status('Не загрузилась библиотека расчётов. Обнови страницу.','Distance library failed. Refresh.',true);return}
-map=L.map('liveMap',{scrollWheelZoom:false,zoomControl:false,attributionControl:false,keyboard:false,dragging:false}).setView([55.7558,37.6173],15);
-// No OpenStreetMap basemap or other tiles: only the Yandex iframe is displayed.
+map={removeLayer(){}};
+ // The visible Yandex map, place list and GPS no longer require Leaflet.
 for(const [field,i] of [[start,0],[end,1]])field.addEventListener('input',()=>{cancel();points[i]=null;resetRoute();if(i===0){lastLocated=null;$('locationStatus').textContent='';$('locationOnMap').hidden=true}field.removeAttribute('aria-invalid');status('Укажи начальную точку и при желании финиш.','Enter your starting point and optionally a destination.')});
 city.addEventListener('input',()=>{chosen=[];drawChosen();if(poiLayer)map.removeLayer(poiLayer);nearby=[];cancel();points=[null,null];lastLocated=null;resetRoute();cache.clear()});
 $('fitRoute').onclick=()=>window.open($('yandexNav').href,'_blank','noopener,noreferrer');
@@ -214,7 +213,7 @@ function renderPlacesList(places,limit=24){
 }
 $('placeFilter').onchange=()=>drawPlaces(nearby);
 function drawPlaces(places){
- nearby=places;const visible=filterPlaceQuery(places).filter(p=>$('placeFilter').value==='all'||p.type===$('placeFilter').value||p.category===$('placeFilter').value);renderPlacesList(visible);if(poiLayer)map.removeLayer(poiLayer);poiLayer=L.layerGroup().addTo(map);
+ nearby=places;const visible=filterPlaceQuery(places).filter(p=>$('placeFilter').value==='all'||p.type===$('placeFilter').value||p.category===$('placeFilter').value);renderPlacesList(visible);if(poiLayer)map.removeLayer(poiLayer);poiLayer=null;
  const colors={parks:'#16866b',water:'#008bab',food:'#c57521',malls:'#8b48be',culture:'#b44c79',sights:'#4866bf',art:'#b44c79',books:'#916746'};
  for(const p of visible.slice(0,180)){
   const popup=document.createElement('div'),title=document.createElement('strong'),button=document.createElement('button');title.textContent=p.name;button.type='button';button.textContent=chosen.some(x=>x.id===p.id)?tr('Убрать остановку','Remove stop'):tr('Через это место','Visit this place');button.className='poi-choice';button.onclick=()=>choosePlace(p);popup.append(title,document.createElement('br'),button);
@@ -293,87 +292,150 @@ async function buildOnYandex(surprise=false){
   start.setAttribute('aria-invalid','true');start.focus();return true;
  }
  cancel();const buildId=generation;resetRoute();busy(true);
+ const distanceEngine=window.CityRouteDistance,local=window.CityRoutePlaces;
+ const moscow=/^(москва|moscow)/i.test(city.value.trim());
+ const loop=document.querySelector('[name="routeMode"]:checked')?.value==='loop';
+ const style=$('routeStyle').value;
+ const requestedKm=Math.max(1,Math.min(12,Number($('distance').value)||3,pref('short')?3:12));
+ const picked=chosen.slice();
+ let plannedStats=null,waypoints=[],extras=[];
+ const signal=new AbortController();
+ const timer=setTimeout(()=>signal.abort('timeout'),18000);
  try{
-  await window.CityRouteAI?.apply();
-  const local=window.CityRoutePlaces,moscow=/^(москва|moscow)/i.test(city.value.trim());
-  const loop=document.querySelector('[name="routeMode"]:checked')?.value==='loop';
-  const style=$('routeStyle').value;
-  const maxKm=Math.max(1,Math.min(12,Number($('distance').value)||3,pref('short')?3:12));
-  let a=points[0]?.label===source?points[0]:moscow?local?.lookup(source)||source:source;
-  let finish=loop?null:end.value.trim()?(points[1]?.label===end.value?points[1]:moscow?local?.lookup(end.value)||end.value:end.value):null;
-  let extras=chosen.slice();
-  // Only geocode when needed to find stops; never delay a normal, complete Yandex route.
-  if(typeof a==='string'&&moscow&&(!finish||loop)&&!extras.length){
-   status('Определяем начало прогулки…','Locating your starting point…');
-   const literal=source.match(/^([-+]?\d{1,2}\.\d{3,}),\s*([-+]?\d{1,3}\.\d{3,})$/);
-   if(literal)a={lat:Number(literal[1]),lng:Number(literal[2]),label:source};
-   else try{
-    const url='https://photon.komoot.io/api/?'+new URLSearchParams({q:source+', Москва',limit:'1',lat:'55.7558',lon:'37.6173'});
-    const response=await fetch(url,{signal:AbortSignal.timeout(5500)});
-    if(response.ok){const data=await response.json(),c=data.features?.[0]?.geometry?.coordinates;
-     if(c&&c[1]>55.2&&c[1]<56.2&&c[0]>36.9&&c[0]<38.2)a={lat:c[1],lng:c[0],label:source};
-    }
-   }catch{}
-  }
+  // Local wishes processing must never block the walking route.
+  try{await window.CityRouteAI?.apply?.()}catch{}
   if(buildId!==generation)return true;
-  const anchor=typeof a==='object'&&Number.isFinite(a.lat)&&Number.isFinite(a.lng)?a:null;
-  const distance=(p,q)=>local?.haversine?.(p,q)??Infinity;
-  const qualify=p=>p.type!=='malls'&&(!pref('rain')||['food','culture','books'].includes(p.type))
-   &&(style==='all'||style==='direct'||p.type===style||p.category===style||(style==='culture'&&p.category==='museum'));
-  if(!extras.length&&moscow&&anchor&&local?.items){
-   let candidates=local.items.filter(p=>qualify(p)&&distance(anchor,p)>.18&&distance(anchor,p)<Math.max(.85,maxKm*(loop?.48:.67)));
-   if(!candidates.length)candidates=local.items.filter(p=>p.type!=='malls'&&distance(anchor,p)>.18&&distance(anchor,p)<Math.max(.85,maxKm*.65));
-   candidates.sort((x,y)=>distance(anchor,x)-distance(anchor,y));
-   if(surprise&&candidates.length)candidates=candidates.slice(0,18).sort(()=>Math.random()-.5);
-   if(loop)extras=candidates.slice(0,2);
-   else if(!finish||style!=='direct')extras=candidates.slice(0,1);
+  async function coordsFor(point,label){
+   if(point&&typeof point==='object'&&distanceEngine.valid(point))return point;
+   const text=String(label||point||'').trim();
+   const literal=text.match(/^([-+]?\d{1,2}(?:\.\d+)?),\s*([-+]?\d{1,3}(?:\.\d+)?)$/);
+   if(literal){const p={lat:+literal[1],lng:+literal[2],label:text};if(distanceEngine.valid(p))return p}
+   if(moscow){
+    const known=local?.lookup(text);if(known)return known;
+   }
+   if(!text)return null;
+   try{
+    const url='https://photon.komoot.io/api/?'+new URLSearchParams({q:text+', '+(city.value.trim()||'Москва'),limit:'1'});
+    const r=await fetch(url,{signal:AbortSignal.any([signal.signal,AbortSignal.timeout(4500)])});
+    if(!r.ok)return null;
+    const data=await r.json(),c=data.features?.[0]?.geometry?.coordinates;
+    if(!c)return null;
+    const p={lat:Number(c[1]),lng:Number(c[0]),label:text};
+    if(!distanceEngine.valid(p)||moscow&&!(p.lat>55.2&&p.lat<56.2&&p.lng>36.9&&p.lng<38.2))return null;
+    return p;
+   }catch{return null}
   }
-  if(loop&&anchor&&extras.length<2){
-   const angle=surprise?Math.random()*360:55;
-   const stop=destination(anchor,Math.min(maxKm*.20,.7),angle);
-   extras.push({...stop,name:tr('Промежуточная точка','Waypoint'),generated:true});
+  const knownStart=points[0]?.label===source?points[0]:moscow?local?.lookup(source)||source:source;
+  const rawFinish=!loop&&end.value.trim()?(points[1]?.label===end.value?points[1]:moscow?local?.lookup(end.value)||end.value:end.value):null;
+  status('Подбираем дорожки нужной длины…','Matching walking distance to your target…');
+  const a=await coordsFor(knownStart,source);
+  if(buildId!==generation)return true;
+  let b=rawFinish?await coordsFor(rawFinish,end.value.trim()):null;
+  if(buildId!==generation)return true;
+  if(!b&&!rawFinish&&!loop&&a){
+   b=distanceEngine.dest(a,Math.max(.6,Math.min(2.5,requestedKm*.29)),surprise?Math.random()*360:65);
+   b={...b,name:tr('Финиш прогулки','Walking finish'),generated:true};
   }
-  if(!loop&&!finish&&!extras.length&&anchor){
-   const p=destination(anchor,Math.min(maxKm*.55,1.8),surprise?Math.random()*360:65);
-   finish={...p,name:tr('Точка разворота прогулки','Walking destination'),generated:true};
-  }
-  if((loop||!finish)&&!extras.length){
-   status('Не удалось выбрать остановки рядом с этим адресом. Укажи конечную точку или нажми «Моё положение».','Cannot select stops by this address. Enter a destination or use My location.',true);
+  const knowPath=Boolean(a&&(loop||b));
+  if(knowPath){
+   const turn=surprise?Math.random()*360:(loop?65:90);
+   plannedStats=await distanceEngine.matchLength({
+    start:a,end:loop?a:b,targetKm:requestedKm,loop,rotate:turn,signal:signal.signal,
+    onProgress:(i,max)=>status('Подбираем маршрут '+requestedKm+' км · попытка '+i+'/'+max+'…','Matching '+requestedKm+' km walk · pass '+i+'/'+max+'…')
+   });
+   if(buildId!==generation)return true;
+   const midpoint=plannedStats.points.slice(1,-1);
+   const used=new Set(picked.map(p=>p.id));
+   const near=target=>{
+    if(!moscow||!local?.items)return null;
+    const allowed=p=>p.type!=='malls'&&!used.has(p.id)
+      &&(!pref('rain')||['food','culture','books'].includes(p.type))
+      &&(style==='all'||style==='direct'||style===p.type||style===p.category||style==='food'&&p.type==='food');
+    let list=local.items.filter(allowed);
+    if(!list.length)list=local.items.filter(p=>p.type!=='malls'&&!used.has(p.id));
+    list.sort((x,y)=>distanceEngine.km(target,x)-distanceEngine.km(target,y));
+    const found=list[0];
+    if(found&&distanceEngine.km(target,found)<=.35){used.add(found.id);return found}
+    return null;
+   };
+   // The named places actually become route waypoints, not unrelated gallery items.
+   let middle=midpoint.map((p,i)=>{
+    const match=near(p);
+    if(match){extras.push(match);return match}
+    return {...p,name:tr('Точка маршрута ','Waypoint ')+(i+1),generated:true}
+   });
+   if(picked.length){
+    // Preserve the user's stops and insert them where they create the smallest detour.
+    const route=[a,...middle,loop?a:b];
+    for(const p of picked){
+     if(!distanceEngine.valid(p))continue;
+     let best={cost:Infinity,index:1};
+     for(let i=1;i<route.length;i++){
+      const extra=distanceEngine.km(route[i-1],p)+distanceEngine.km(p,route[i])-distanceEngine.km(route[i-1],route[i]);
+      if(extra<best.cost)best={cost:extra,index:i};
+     }
+     route.splice(best.index,0,p);
+    }
+    waypoints=route;extras=[...picked,...extras];
+    // Re-measure the actual combined waypoints, instead of showing a false km figure.
+    try{
+     const measured=await distanceEngine.walkingLength(route,{signal:signal.signal,timeoutMs:2800});
+     if(measured)plannedStats={...plannedStats,measuredKm:measured.km,minutes:measured.minutes};
+    }catch{plannedStats={...plannedStats,measuredKm:null,routerUnavailable:true}}
+   }else waypoints=[a,...middle,loop?a:b];
+   points[0]={lat:a.lat,lng:a.lng,label:source};
+   if(!loop&&b)points[1]={lat:b.lat,lng:b.lng,label:end.value.trim()||b.name||tr('Финиш','Finish')};
+  }else if(rawFinish){
+   // Geocoder unavailable: preserve a usable Yandex route rather than leaving a blank page.
+   waypoints=[a||source,...picked,b||rawFinish];extras=picked;
+  }else{
+   status('Не удалось определить старт. Разреши геолокацию или введи точный адрес с городом.','Could not locate the start. Allow GPS or enter a precise address and city.',true);
+   $('mapSection').scrollIntoView({behavior:'smooth',block:'start'});
    return true;
   }
-  const waypoints=[a,...extras,...(loop?[a]:finish?[finish]:[])];
-  if(waypoints.length<2){status('Нужна ещё одна точка.','Choose another route point.',true);return true}
+  if(waypoints.length<2)return true;
   if(buildId!==generation)return true;
-  if(anchor)points[0]={lat:anchor.lat,lng:anchor.lng,label:source};
-  if(!loop&&finish&&typeof finish==='object'&&Number.isFinite(finish.lat))points[1]={lat:finish.lat,lng:finish.lng,label:end.value.trim()||finish.name||tr('Финиш','Finish')};
-  yandexFallbackStops=waypoints;currentRoutePlaces=extras.filter(p=>!p.generated);
+  yandexFallbackStops=waypoints;
+  currentRoutePlaces=extras.filter(p=>!p.generated);
   updateYandex();
+  window.CityRouteMapRescue?.update(waypoints,{requestedKm,measuredKm:plannedStats?.measuredKm});
   const panel=$('itinerary');panel.replaceChildren();
-  const title=document.createElement('h3');title.className='quick-journey-title';
-  title.textContent=loop?tr('Круговая прогулка','Round-trip walk'):tr('План прогулки по шагам','Your walking itinerary');panel.append(title);
-  const info=document.createElement('p');info.className='field-note';
-  info.textContent=tr('Точки идут по порядку. Пеший путь между ними рассчитывает Яндекс; на каждом участке есть кнопка навигации.','Stops are in order. Yandex calculates the pedestrian route; each leg has a navigation link.');
-  panel.append(info);
+  const heading=document.createElement('h3');heading.className='quick-journey-title';
+  heading.textContent=loop?tr('Круговая прогулка','Round-trip walk'):tr('План прогулки по шагам','Your walking itinerary');
+  panel.append(heading);
+  const measured=plannedStats?.measuredKm;
+  const kmInfo=document.createElement('p');kmInfo.className='route-distance-summary';
+  const closeToGoal=Number.isFinite(measured)&&Math.abs(measured-requestedKm)<=Math.max(.5,requestedKm*.12);
+  kmInfo.textContent=Number.isFinite(measured)
+    ?tr('Цель '+requestedKm+' км · пешеходный расчёт '+measured.toFixed(1)+' км'+(closeToGoal?' ✓':' · возможна разница'),'Target '+requestedKm+' km · walking estimate '+measured.toFixed(1)+' km'+(closeToGoal?' ✓':' · may differ'))
+    :tr('Цель '+requestedKm+' км · промежуточные точки добавлены. Точную длину проверь в Яндексе.','Target '+requestedKm+' km · detour waypoints added. Confirm actual distance in Yandex.');
+  if(plannedStats?.tooShort)kmInfo.textContent=tr('Выбранные старт и финиш дальше '+requestedKm+' км по прямой — сократить путь до этой длины невозможно.','Start and finish are more than '+requestedKm+' km apart, so this target is impossible.');
+  panel.append(kmInfo);
+  const warning=document.createElement('p');warning.className='field-note';
+  warning.textContent=tr('Схема показывает все промежуточные точки. Точный путь по улицам и время в Яндексе могут отличаться от расчёта.','Every waypoint is shown below. Yandex street routing and duration can differ from the estimate.');
+  panel.append(warning);
   const pointLabel=(p,i)=>typeof p==='string'?p:p.name||p.label||(i===0?source:p.lat.toFixed(5)+','+p.lng.toFixed(5));
   const pointCoords=p=>typeof p==='object'&&Number.isFinite(p.lat)&&Number.isFinite(p.lng)?[p.lat,p.lng]:null;
-  const pointText=p=>{const c=pointCoords(p);return c?c.map(x=>x.toFixed(6)).join(','):((city.value.trim()||'Москва')+', '+String(p))};
+  const pointText=p=>{const c=pointCoords(p);return c?c.map(x=>x.toFixed(6)).join(','):(city.value.trim()||'Москва')+', '+String(p)};
   const steps=document.createElement('ol');steps.className='cityroute-quick-stops cityroute-step-plan';
   for(const [i,p] of waypoints.entries()){
    const li=document.createElement('li');li.className='cityroute-step';
-   const marker=document.createElement('span');marker.className='cityroute-step-marker';marker.textContent=i===0?'А':i===waypoints.length-1?(loop?'А':'Б'):String(i);
+   const marker=document.createElement('span');marker.className='cityroute-step-marker';
+   marker.textContent=i===0?'А':i===waypoints.length-1?(loop?'А':'Б'):String(i);
    const body=document.createElement('div');body.className='cityroute-step-body';
    const name=document.createElement('strong');name.textContent=pointLabel(p,i);body.append(name);
-   const meta=document.createElement('small');meta.textContent=i===0?tr('Старт','Start'):i===waypoints.length-1?tr('Финиш','Finish'):tr('Остановка '+i,'Stop '+i);body.append(meta);
+   const meta=document.createElement('small');
+   meta.textContent=i===0?tr('Старт','Start'):i===waypoints.length-1?tr('Финиш','Finish'):tr('Остановка '+i,'Stop '+i);
+   body.append(meta);
    if(i>0){
-    const previous=waypoints[i-1],prevCoords=pointCoords(previous),nextCoords=pointCoords(p);
-    const leg=document.createElement('div');leg.className='cityroute-step-leg';
-    const from=pointText(previous),to=pointText(p),url=new URL('https://yandex.ru/maps/');
-    url.search=new URLSearchParams({rtext:from+'~'+to,rtt:'pd',lang:english()?'en_RU':'ru_RU'}).toString();
-    const walk=document.createElement('a');walk.href=url.href;walk.target='_blank';walk.rel='noopener noreferrer';
-    walk.textContent=tr('Пешком до точки ↗','Walking directions ↗');leg.append(walk);
-    if(prevCoords&&nextCoords){
-     const km=distance({lat:prevCoords[0],lng:prevCoords[1]},{lat:nextCoords[0],lng:nextCoords[1]});
-     if(Number.isFinite(km)){const note=document.createElement('span');note.textContent=tr('~'+km.toFixed(1)+' км по прямой','~'+km.toFixed(1)+' km straight-line');leg.append(note);}
+    const prev=waypoints[i-1],leg=document.createElement('div');leg.className='cityroute-step-leg';
+    const url=new URL('https://yandex.ru/maps/');
+    url.search=new URLSearchParams({rtext:pointText(prev)+'~'+pointText(p),rtt:'pd'}).toString();
+    const a=document.createElement('a');a.href=url.href;a.target='_blank';a.rel='noopener noreferrer';
+    a.textContent=tr('Пеший переход ↗','Walking directions ↗');leg.append(a);
+    const c1=pointCoords(prev),c2=pointCoords(p);
+    if(c1&&c2){const d=distanceEngine.km({lat:c1[0],lng:c1[1]},{lat:c2[0],lng:c2[1]});
+     if(Number.isFinite(d)){const note=document.createElement('span');note.textContent=tr('≈'+d.toFixed(1)+' км по прямой','≈'+d.toFixed(1)+' km straight-line');leg.append(note)}
     }
     body.append(leg);
    }
@@ -382,45 +444,41 @@ async function buildOnYandex(surprise=false){
   panel.append(steps);
   const action=document.createElement('a');action.className='primary inline-link cityroute-map-cta';
   action.href=$('yandexNav').href;action.target='_blank';action.rel='noopener noreferrer';
-  action.textContent=tr('Открыть весь пеший маршрут ↗','Open complete walking route ↗');
-  const saveQuick=document.createElement('button');saveQuick.type='button';saveQuick.className='secondary cityroute-save-route';
-  saveQuick.textContent=tr('♡ Сохранить прогулку','♡ Save this walk');
-  saveQuick.onclick=()=>{
+  action.textContent=tr('Открыть весь маршрут в Яндекс Картах ↗','Open complete route in Yandex Maps ↗');
+  const save=document.createElement('button');save.type='button';save.className='secondary cityroute-save-route';
+  save.textContent=tr('♡ Сохранить прогулку','♡ Save this walk');
+  save.onclick=()=>{
    try{
-    const key='cityroute-saved-itineraries-v1',all=JSON.parse(localStorage.getItem(key)||'[]');
-    const entry={v:3,id:crypto.randomUUID?.()||String(Date.now()),city:city.value.trim()||'Москва',start:source,finish:end.value.trim(),loop,style,stops:extras,waypoints};
-    localStorage.setItem(key,JSON.stringify([entry,...(Array.isArray(all)?all:[])].slice(0,30)));
+    const key='cityroute-saved-itineraries-v1',old=JSON.parse(localStorage.getItem(key)||'[]');
+    const entry={v:3,id:crypto.randomUUID?.()||String(Date.now()),city:city.value.trim()||'Москва',start:source,finish:end.value.trim(),loop,style,stops:extras,waypoints,distanceKm:measured||null,requestedKm};
+    localStorage.setItem(key,JSON.stringify([entry,...(Array.isArray(old)?old:[])].slice(0,30)));
     $('saveStatus').textContent=tr('✓ Сохранено в браузере.','✓ Saved on this device.');
-    saveQuick.disabled=true;saveQuick.textContent=tr('Сохранено ✓','Saved ✓');renderQuickSaved();
+    save.disabled=true;save.textContent=tr('Сохранено ✓','Saved ✓');renderQuickSaved();
     const cloud=window.CityRouteCloud;
     if(cloud?.isSignedIn()){
-     $('saveStatus').textContent=tr('✓ Сохранено локально. Сохраняем в PostgreSQL…','✓ Saved locally. Syncing to PostgreSQL…');
-     void cloud.saveRoute(entry).then(()=>{$('saveStatus').textContent=tr('✓ Сохранено локально и в PostgreSQL.','✓ Saved locally and in PostgreSQL.');window.CityRouteCloudUI?.refresh?.()})
-      .catch(err=>{$('saveStatus').textContent=tr('✓ Локально сохранено. Ошибка PostgreSQL: ','✓ Locally saved. PostgreSQL error: ')+(err?.message||'');});
+     $('saveStatus').textContent=tr('Сохраняем в PostgreSQL…','Saving to PostgreSQL…');
+     void cloud.saveRoute(entry).then(()=>{$('saveStatus').textContent=tr('✓ В браузере и PostgreSQL.','✓ Saved locally and in PostgreSQL.');window.CityRouteCloudUI?.refresh?.()})
+      .catch(e=>{$('saveStatus').textContent=tr('✓ Локально сохранено. PostgreSQL: ','✓ Saved locally. PostgreSQL: ')+(e?.message||'')});
     }
-   }catch{$('saveStatus').textContent=tr('Не удалось сохранить в браузере.','Could not save in browser.')}
+   }catch{$('saveStatus').textContent=tr('Не удалось сохранить на устройстве.','Could not save locally.')}
   };
-  panel.append(action,saveQuick);
-  if(currentRoutePlaces.length)showScenic(currentRoutePlaces,tr('Подбор мест по предпочтениям. Для точного входа и дорожки открой Яндекс Карты.','Selected nearby stops. Check exact entrances and route in Yandex Maps.'));
+  panel.append(action,save);
+  if(currentRoutePlaces.length)showScenic(currentRoutePlaces,tr('Места вдоль маршрута. Фотографии открываются ниже, остальные — в Яндекс Картах.','Stops along your route. Photos appear below; more in Yandex Maps.'));
   if(document.querySelector('[name="transport"]:checked')?.value==='transit'){
    const box=$('transportResult');box.hidden=false;box.replaceChildren();
    const a=document.createElement('a');a.className='secondary inline-link';a.target='_blank';a.rel='noopener noreferrer';
-   const u=new URL($('yandexNav').href);u.searchParams.set('rtt','mt');a.href=u.href;
+   const url=new URL($('yandexNav').href);url.searchParams.set('rtt','mt');a.href=url.href;
    a.textContent=tr('На транспорте ↗','Public transport ↗');box.append(a);
   }
-  if(moscow){
-   drawPlaces(backupPlaces());
-   $('nearbyDisclosure').open=true;
-  }
-  $('routeDetail').textContent=tr('Пешком · '+(waypoints.length-2)+' остановок · детали в Яндексе','Walking · '+(waypoints.length-2)+' stops · details in Yandex');
+  if(moscow){drawPlaces(backupPlaces());$('nearbyDisclosure').open=true;}
+  $('routeDetail').textContent=Number.isFinite(measured)?tr('Пешком ≈ '+measured.toFixed(1)+' км · цель '+requestedKm,'Walking ≈ '+measured.toFixed(1)+' km · target '+requestedKm):tr('Цель '+requestedKm+' км · проверить в Яндексе','Target '+requestedKm+' km · check Yandex');
   $('rerollRoute').hidden=false;
-  status('Маршрут готов. Схема остановок справа, пеший путь в Яндекс Картах.','Route ready. See stop-by-stop plan and walking path in Yandex Maps.');
-  scrollMap();
+  status('Маршрут с обходными точками готов. Если карта пустая — нажми «Схема».','Walking detour ready. If the map is blank, select Diagram.');
+  scrollMap();return true;
+ }catch(error){
+  if(buildId===generation)status('Ошибка построения: '+(error?.message||'неизвестно'),'Routing error: '+(error?.message||'unknown'),true);
   return true;
- }catch(err){
-  if(buildId===generation)status('Не удалось построить маршрут: '+(err?.message||'ошибка'),'Could not build route: '+(err?.message||'error'),true);
-  return true;
- }finally{if(buildId===generation)busy(false)}
+ }finally{clearTimeout(timer);if(buildId===generation)busy(false)}
 }
 function renderQuickSaved(){
  const box=$('quickSavedRoutes');if(!box)return;

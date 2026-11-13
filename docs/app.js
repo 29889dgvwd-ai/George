@@ -9,7 +9,7 @@ const tr=(ru,en)=>english()?en:ru;
 function status(ru,en,error=false){for(const el of [$('formStatus'),$('routeStatus')]){el.textContent=tr(ru,en||ru);el.setAttribute('role',error?'alert':'status')}}
 function busy(value){buttons.forEach(b=>{b.disabled=value;b.setAttribute('aria-busy',String(value))});$('buildReal').querySelector('.ru').textContent=value?'Строим маршрут…':'Построить маршрут';$('buildReal').querySelector('.en').textContent=value?'Building…':'Build route'}
 function cancel(){generation++;controller?.abort();controller=null;busy(false)}
-function resetRoute(){currentRoutePath=[];currentRoutePlaces=[];yandexFallbackStops=null;$('rerollRoute').hidden=true;updateYandex();itinerary?.clear();$('transportResult').replaceChildren();$('transportResult').hidden=true;$('scenicResult').replaceChildren();$('scenicResult').hidden=true;if(routeLayer){map?.removeLayer(routeLayer);routeLayer=null}$('routeDetail').textContent=''}
+function resetRoute(){currentRoutePath=[];currentRoutePlaces=[];yandexFallbackStops=null;$('rerollRoute').hidden=true;updateYandex();itinerary?.clear();$('transportResult').replaceChildren();$('transportResult').hidden=true;$('scenicResult').replaceChildren();$('scenicResult').hidden=true;if(routeLayer){map?.removeLayer(routeLayer);routeLayer=null}window.CityRouteMapRescue?.update([]);$('routeDetail').textContent=''}
 function showWalkingMap(){document.body.classList.add('yandex-widget-active');$('mapProvider').textContent=tr('Яндекс Карты · пеший путь по выбранным остановкам','Yandex Maps · walking route via your selected stops');updateYandex();}
 function updateYandex(){
  const coord=p=>Array.isArray(p)?p:([p?.lat,p?.lng]);
@@ -663,45 +663,55 @@ $('clearReal').onclick=()=>{chosen=[];drawChosen();if(poiLayer)map.removeLayer(p
 function locateActual(){
  if(locationPending)return;
  if(!window.isSecureContext||!navigator.geolocation){
-  const message=tr('В этом браузере геопозиция недоступна. Открой CityRoute через HTTPS в Safari или Chrome и разреши доступ к геопозиции. Можно также ввести адрес вручную.','Location is unavailable here. Open CityRoute using HTTPS in Safari or Chrome and allow location access, or enter an address manually.');
-  $('locationStatus').textContent=message;status(message,message,true);return;
+  const msg=tr('GPS требует HTTPS и разрешения браузера. Открой опубликованный сайт напрямую в Safari и разреши геопозицию.','GPS requires HTTPS and browser permission. Open the published website directly in Safari and allow location.');
+  $('locationStatus').textContent=msg;status(msg,msg,true);return;
  }
  locationPending=true;
- for(const b of [$('locateReal'),$('mapGPS')]){b.disabled=true;b.setAttribute('aria-busy','true')}
- $('locationStatus').textContent=tr('Запрашиваем точную геопозицию у браузера…','Requesting precise location from your browser…');
- let done=false,watchdog;
+ const controls=[$('locateReal'),$('mapGPS')];
+ controls.forEach(b=>{b.disabled=true;b.setAttribute('aria-busy','true')});
+ $('locationStatus').textContent=tr('Получаем геопозицию устройства…','Getting your device location…');
+ let done=false,watchdog=0;
  const finish=()=>{
-  if(done)return false;done=true;locationPending=false;
-  clearTimeout(watchdog);
-  for(const b of [$('locateReal'),$('mapGPS')]){b.disabled=false;b.removeAttribute('aria-busy')}
-  return true
+  if(done)return false;done=true;locationPending=false;clearTimeout(watchdog);
+  controls.forEach(b=>{b.disabled=false;b.removeAttribute('aria-busy')});return true;
  };
- watchdog=setTimeout(()=>fail({code:3}),15000);
  function fail(err){
   if(!finish())return;
-  const message=err?.code===1?tr('Доступ к геопозиции запрещён. На iPhone: Настройки → Safari (или Chrome) → Геопозиция → разрешить доступ; затем повтори. Можно ввести адрес вручную.','Location permission was denied. Allow location for Safari or Chrome in iPhone Settings, then retry. You can also type an address.')
-   :err?.code===2?tr('Сейчас не удаётся получить GPS. Включи геолокацию и попробуй на улице, либо введи адрес.','GPS is unavailable. Enable Location Services, retry outdoors, or enter an address.')
-   :tr('GPS не ответил. Проверь разрешение на геопозицию в браузере или введи адрес.','GPS timed out. Check your browser location permission or enter an address.');
+  const message=err?.code===1
+   ?tr('Доступ к геопозиции запрещён. iPhone: Настройки → Конфиденциальность и безопасность → Службы геолокации → Safari → разрешить. Открой ссылку напрямую, не во встроенном браузере.','Location denied. iPhone: Settings → Privacy & Security → Location Services → Safari → allow. Open the site directly in Safari.')
+   :err?.code===2?tr('Браузер не получил координаты. Проверь службы геолокации и попробуй ещё раз.','Browser could not get coordinates. Check Location Services and retry.')
+   :tr('Геопозиция не отвечает. Открой CityRoute по HTTPS в Safari, разреши доступ или введи адрес.','Location request timed out. Open CityRoute using HTTPS in Safari and allow access or enter an address.');
   $('locationStatus').textContent=message;status(message,message,true);
  }
- try{
-  navigator.geolocation.getCurrentPosition(pos=>{
-   if(!finish())return;
-   const p={lat:pos.coords.latitude,lng:pos.coords.longitude};
-   if(!Number.isFinite(p.lat)||!Number.isFinite(p.lng)){fail({code:2});return}
-   cancel();resetRoute();
-   const coords=p.lat.toFixed(6)+','+p.lng.toFixed(6);
-   mark(0,p,coords);lastLocated=p;
-   const accuracy=Math.round(pos.coords.accuracy||0);
-   $('locationStatus').textContent=tr('✓ GPS: '+coords+' · точность ≈'+accuracy+' м. Это выбранный старт.','✓ GPS: '+coords+' · accuracy about '+accuracy+' m. This is now your start.');
-   const url=new URL('https://yandex.ru/maps/');
-   url.search=new URLSearchParams({ll:p.lng.toFixed(6)+','+p.lat.toFixed(6),z:'17',lang:english()?'en_RU':'ru_RU'}).toString();
-   $('locationOnMap').href=url.href;$('locationOnMap').hidden=false;
-   status('Твоё положение определено. Карта показывает точные координаты.','Location found. The map now shows your actual coordinates.');
-  },fail,{enableHighAccuracy:true,timeout:12000,maximumAge:0});
- }catch(e){fail({code:2})}
+ function success(pos){
+  if(done)return;
+  const p={lat:Number(pos?.coords?.latitude),lng:Number(pos?.coords?.longitude)};
+  if(!Number.isFinite(p.lat)||!Number.isFinite(p.lng)){fail({code:2});return}
+  if(!finish())return;
+  cancel();resetRoute();
+  const coords=p.lat.toFixed(6)+','+p.lng.toFixed(6);
+  mark(0,p,coords);lastLocated=p;
+  const accuracy=Math.round(Number(pos.coords.accuracy)||0);
+  $('locationStatus').textContent=tr('✓ Местоположение: '+coords+' · точность '+accuracy+' м. Это начало прогулки.','✓ GPS: '+coords+' · accuracy '+accuracy+' m. Start point selected.');
+  const url=new URL('https://yandex.ru/maps/');
+  url.search=new URLSearchParams({ll:p.lng.toFixed(6)+','+p.lat.toFixed(6),z:'17',lang:english()?'en_RU':'ru_RU'}).toString();
+  $('locationOnMap').href=url.href;$('locationOnMap').hidden=false;
+  window.CityRouteMapRescue?.update([p],{});
+  status('GPS определён. Нажми «Построить маршрут», чтобы подобрать прогулку.','Location found. Select Build route to plan your walk.');
+ }
+ // High-accuracy GPS can time out indoors or on iOS: retry once with lower accuracy
+ // and a recently cached fix, without ever inventing a location.
+ watchdog=setTimeout(()=>fail({code:3}),21000);
+ const coarse=()=>{
+  if(done)return;
+  $('locationStatus').textContent=tr('Точный GPS не ответил, пробуем обычную геолокацию…','Precise GPS timed out; trying standard location…');
+  try{navigator.geolocation.getCurrentPosition(success,fail,{enableHighAccuracy:false,timeout:7000,maximumAge:120000})}
+  catch{fail({code:2})}
+ };
+ try{navigator.geolocation.getCurrentPosition(success,e=>{if(e?.code===1)fail(e);else coarse()},{enableHighAccuracy:true,timeout:9500,maximumAge:60000})}
+ catch{coarse()}
 }
-$('locateReal').onclick=locateActual;
+ $('locateReal').onclick=locateActual;
 $('mapGPS').onclick=locateActual;
 
 function captureSettings(){return [...form.querySelectorAll('input,select,textarea')].filter(e=>e.id||e.name||e.dataset.preference).map(e=>({id:e.id,name:e.name,value:e.value,preference:e.dataset.preference,checked:e.checked}));}

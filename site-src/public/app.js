@@ -329,7 +329,9 @@ function renderQuickSaved(){
  const box=$('quickSavedRoutes');if(!box)return;
  box.replaceChildren();
  let list=[];try{list=JSON.parse(localStorage.getItem('cityroute-saved-itineraries-v1')||'[]')}catch{}
- for(const route of (Array.isArray(list)?list:[]).filter(r=>r.v===3).slice(0,8)){
+ const quick=(Array.isArray(list)?list:[]).filter(r=>r.v===3).slice(0,8);
+ $('quickSavedSection').hidden=quick.length===0;
+ for(const route of quick){
   const a=document.createElement('button');a.type='button';a.className='secondary';
   a.textContent=(route.start||tr('Маршрут','Route'))+' → '+(route.loop?tr('к началу','start'):(route.finish||route.stops?.at(-1)?.name||tr('финиш','finish')));
   a.onclick=()=>openQuickSaved(route);box.append(a);

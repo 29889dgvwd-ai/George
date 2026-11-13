@@ -192,27 +192,28 @@ $('placeQuery').oninput=()=>{
  drawPlaces(nearby.length?nearby:backupPlaces());
 };
 $('nearbyPlaces').onclick=async()=>{
- // Results are shown from the bundled catalog immediately, even with no internet.
+ // Always show local results first: search works offline and on paused free databases.
  $('nearbyDisclosure').open=true;
- const instant=backupPlaces();
- drawPlaces(instant);
- if(instant.length)$('placesStatus').textContent=tr('Места загружены сразу. Проверяем другие варианты…','Nearby places shown instantly. Checking for additional places…');
- cancel();const id=generation,abort=new AbortController();controller=abort;
- const shortTimeout=setTimeout(()=>abort.abort('places-timeout'),6500);
+ const instant=backupPlaces();drawPlaces(instant);
+ const isMoscow=/^(москва|moscow)/i.test(city.value.trim());
+ if(!isMoscow){
+  $('placesStatus').textContent=tr('База мест сейчас для Москвы. Поиск других городов открой в Яндекс Картах.','PostgreSQL places currently cover Moscow. Search other cities in Yandex Maps.');
+  return;
+ }
+ $('placesStatus').textContent=tr('Места показаны сразу. Обновляем каталог из PostgreSQL…','Places displayed instantly. Refreshing from PostgreSQL…');
+ const cloud=window.CityRouteCloud;
+ if(!cloud?.listPlaces)return;
  try{
-  const center=points[0]&&start.value===points[0].label?points[0]:window.CityRoutePlaces?.lookup(start.value)||map.getCenter();
-  const fresh=await scenicPlaces(center,null,3,'all',abort.signal);
-  if(id!==generation)return;
-  const keys=new Set(fresh.map(p=>p.id));
-  const combined=[...fresh,...instant.filter(p=>!keys.has(p.id))];
-  drawPlaces(combined);
-  $('placesStatus').textContent=tr('Найдено мест: '+combined.length+'. Выбирай остановки в списке.','Found '+combined.length+' places. Select stops below.');
+  const rows=await cloud.listPlaces();
+  const existing=new Set(rows.map(p=>p.id));
+  const combined=[...rows,...instant.filter(p=>!existing.has(p.id))];
+  if(combined.length){
+   drawPlaces(combined);
+   $('placesStatus').textContent=tr('PostgreSQL: '+rows.length+' мест. Выбирай остановки ниже.','PostgreSQL: '+rows.length+' places. Choose stops below.');
+  }
  }catch(e){
-  if(id!==generation)return;
-  $('placesStatus').textContent=instant.length
-   ?tr('Показаны '+instant.length+' мест из встроенного каталога Москвы. Для полного поиска нажми «Полный поиск в Яндекс Картах».','Showing '+instant.length+' places from the Moscow starter catalogue. Use full Yandex search for more.')
-   :tr('Автопоиск мест недоступен для этого города. Открой полный поиск в Яндекс Картах.','Automatic places are unavailable for this city. Use full Yandex Maps search.');
- }finally{clearTimeout(shortTimeout);if(id===generation){controller=null;busy(false)}}
+  $('placesStatus').textContent=tr('Показаны '+instant.length+' мест из локального каталога. PostgreSQL временно недоступен.','Showing '+instant.length+' local places. PostgreSQL is temporarily unavailable.');
+ }
 };
 function showScenic(places,note,layer){
  currentRoutePlaces=places;
@@ -310,6 +311,16 @@ function buildOnYandex(surprise=false){
    $('saveStatus').textContent=tr('✓ Сохранено. Открой раздел «Мои прогулки».','✓ Saved. Open My walks.');
    saveQuick.disabled=true;saveQuick.textContent=tr('Сохранено ✓','Saved ✓');
    renderQuickSaved();
+   const cloud=window.CityRouteCloud;
+   if(cloud?.isSignedIn()){
+    $('saveStatus').textContent=tr('✓ Сохранено локально. Передаём в PostgreSQL…','✓ Saved locally. Syncing with PostgreSQL…');
+    void cloud.saveRoute(entry).then(()=>{
+     $('saveStatus').textContent=tr('✓ Маршрут сохранён на устройстве и в PostgreSQL.','✓ Saved on this device and in PostgreSQL.');
+     window.CityRouteCloudUI?.refresh?.();
+    }).catch(err=>{
+     $('saveStatus').textContent=tr('✓ Локально сохранено. Облако не ответило: ','✓ Saved locally. Cloud unavailable: ')+(err?.message||'');
+    });
+   }
   }catch(e){$('saveStatus').textContent=tr('Браузер не разрешил сохранить маршрут.','This browser could not save the route.')}
  };
  const action=document.createElement('a');action.className='primary inline-link cityroute-map-cta';action.href=$('yandexNav').href;action.target='_blank';action.rel='noopener noreferrer';

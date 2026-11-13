@@ -3,7 +3,9 @@
    No Yandex scraping, random stock imagery, or unrelated photos. */
 (()=>{'use strict';
 const cache=new Map(),sourceByUrl=new Map();
-const TAG='cityroute-commons-images-v4:',TTL=5*24*3600*1000;
+const TAG='cityroute-commons-images-v5:',TTL=5*24*3600*1000;
+// Exact, verified Wikimedia Commons categories for identified Moscow venues.
+const verifiedCategories={'Кафе «Пушкинъ»':'Category:Café Pouchkine','Кондитерская «Кафе Пушкинъ»':'Category:Café Pouchkine'};
 const text=(ru,en)=>document.body.classList.contains('english')?en:ru;
 const imageFile=f=>'https://commons.wikimedia.org/wiki/Special:Redirect/file/'+encodeURIComponent(String(f).replace(/^File:/,'').replaceAll(' ','_'))+'?width=900';
 const safeUrl=x=>{try{const u=new URL(String(x||''));return u.protocol==='https:'?u.href:''}catch{return ''}};
@@ -40,7 +42,9 @@ async function categoryImages(category){
   const info=page.imageinfo?.[0];return info?.mime?.startsWith('image/')&&!['image/svg+xml','image/gif'].includes(info.mime);
  }).slice(0,12).map(page=>{
   const info=page.imageinfo[0],url=info.thumburl||info.url;
-  const credits=info.extmetadata?.LicenseShortName?.value||'Wikimedia Commons';
+  const license=info.extmetadata?.LicenseShortName?.value||'Wikimedia Commons';
+  const artistHtml=info.extmetadata?.Artist?.value||'',artist=artistHtml.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0,65);
+  const credits=[artist,license].filter(Boolean).join(' · ');
   return record(url,info.descriptionurl||'https://commons.wikimedia.org/wiki/'+encodeURIComponent(page.title),credits);
  }).filter(Boolean).slice(0,7);
 }
@@ -90,7 +94,7 @@ async function photos(p){
   }
  }
  if(tags.wikimedia_commons?.startsWith('File:'))found.push(record(imageFile(tags.wikimedia_commons),sourceFile(tags.wikimedia_commons)));
- const source=tags.wikimedia_commons;
+ const source=tags.wikimedia_commons||verifiedCategories[p.name];
  if(source?.startsWith('Category:'))try{found.push(...await categoryImages(source))}catch{}
  if(found.length<5&&tags.wikidata)try{found.push(...await wikidataImages(tags.wikidata))}catch{}
  if(found.length<5&&tags.wikipedia)try{found.push(...await wikipediaImages(tags.wikipedia))}catch{}
@@ -128,6 +132,7 @@ function render(places,root,{tr,focus}){
     current=index;photo.src=urls[current];
     credits.href=sourceByUrl.get(urls[current])?.source||urls[current];
     credits.title=sourceByUrl.get(urls[current])?.credit||'Wikimedia Commons';
+    credits.textContent='© '+(sourceByUrl.get(urls[current])?.credit||'Wikimedia Commons')+' ↗';
     row?.querySelectorAll('button').forEach((button,j)=>button.classList.toggle('active',j===index));
    };
    photo.onload=()=>{placeholder.hidden=true;caption.hidden=true};

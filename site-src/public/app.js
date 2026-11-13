@@ -240,7 +240,79 @@ function showTransport(data,places,loop){
  }
 }
 
+// Fast Yandex-only route builder: the embedded map, not an unresponsive
+// third-party routing server, determines the actual pedestrian path.
+function buildOnYandex(surprise=false){
+ const source=start.value.trim();
+ if(!source){
+  status('Введи адрес начала или нажми «Моё положение».','Enter a starting address or select My location.',true);
+  start.setAttribute('aria-invalid','true');start.focus();return true;
+ }
+ const local=window.CityRoutePlaces,moscow=/^(москва|moscow)/i.test(city.value.trim());
+ const loop=document.querySelector('[name="routeMode"]:checked')?.value==='loop';
+ const style=$('routeStyle').value;
+ const a=points[0]&&points[0].label===source?points[0]:moscow?local?.lookup(source)||source:source;
+ const dest=loop?null:end.value.trim()?(points[1]&&points[1].label===end.value?points[1]:moscow?local?.lookup(end.value)||end.value:end.value):null;
+ let extras=chosen.slice();
+ if(!extras.length&&moscow&&local?.items){
+  const anchorPoint=typeof a==='object'?a:null;
+  const endPoint=typeof dest==='object'?dest:null;
+  let candidates=anchorPoint?local.items.filter(p=>p.id!==anchorPoint.id&&local.haversine(anchorPoint,p)>.15):[];
+  const wanted=p=>style==='all'||style==='direct'||style===p.type||(style==='culture'&&p.category==='museum');
+  candidates=candidates.filter(p=>p.type!=='malls'&&(!pref('rain')||['food','culture'].includes(p.type))&&(!pref('malls')||p.type!=='malls')&&wanted(p));
+  if(endPoint)candidates=candidates.filter(p=>{
+   const via=local.haversine(anchorPoint,p)+local.haversine(p,endPoint);
+   return via<=Math.max(local.haversine(anchorPoint,endPoint)*1.35,.8);
+  });
+  const walkKm=Math.max(1,Math.min(10,Number($('distance').value)||3));
+  candidates=candidates.filter(p=>local.haversine(anchorPoint,p)<Math.max(1.1,walkKm*.65));
+  candidates.sort((x,y)=>local.haversine(anchorPoint,x)-local.haversine(anchorPoint,y));
+  if(surprise&&candidates.length)candidates=candidates.slice(0,20).sort(()=>Math.random()-.5);
+  if(!dest||loop||style!=='direct')extras=candidates.slice(0,loop?2:dest?1:1);
+ }
+ if(!dest&&!loop&&!extras.length){
+  status('Для прогулки без финиша сначала нажми «Моё положение» или выбери начальное место из каталога, либо введи конечную точку.','For a walk without a destination, use My location or a known starting place, or enter a destination.',true);
+  return true;
+ }
+ if(loop&&!extras.length){
+  status('Для кругового маршрута добавь остановку через «Найти места» или используй «Моё положение».','For a round trip, add a stop with Find places or use My location.',true);
+  return true;
+ }
+ cancel();resetRoute();
+ const waypoints=[a,...extras, ...(loop?[a]:dest?[dest]:[])];
+ if(waypoints.length<2){
+  status('Укажи ещё одну точку маршрута.','Choose one more route point.',true);return true;
+ }
+ if(waypoints.length===2&&typeof waypoints[0]==='string'&&waypoints[0]===waypoints[1]){
+  status('Начало и конец совпадают.','Start and destination are the same.',true);return true;
+ }
+ yandexFallbackStops=waypoints;
+ currentRoutePlaces=extras;
+ updateYandex();
+ const panel=$('itinerary');panel.replaceChildren();
+ const title=document.createElement('h3');title.textContent=tr('Маршрут в Яндекс Картах','Your Yandex walking route');panel.append(title);
+ const info=document.createElement('p');info.className='field-note';
+ info.textContent=tr('Точки переданы Яндексу. Реальная дорожка, километры и время рассчитаны в Яндекс Картах.','Your stops have been sent to Yandex. The actual walking path, distance and duration are calculated by Yandex Maps.');panel.append(info);
+ const list=document.createElement('ol');list.className='cityroute-quick-stops';
+ for(const point of waypoints){const li=document.createElement('li');li.textContent=typeof point==='string'?point:point.name||point.label||point.lat.toFixed(6)+','+point.lng.toFixed(6);list.append(li)}
+ panel.append(list);
+ const action=document.createElement('a');action.className='primary inline-link cityroute-map-cta';action.href=$('yandexNav').href;action.target='_blank';action.rel='noopener noreferrer';
+ action.textContent=tr('Открыть пеший маршрут ↗','Open walking directions ↗');panel.append(action);
+ if(extras.length)showScenic(extras,tr('Места подобраны по предпочтениям. Точный путь и обходы улиц проверяй в Яндексе.','Stops are suggested by preferences. Check street routing and detours in Yandex.'));
+ if(document.querySelector('[name="transport"]:checked')?.value==='transit'){
+  const box=$('transportResult');box.hidden=false;box.replaceChildren();
+  const transit=document.createElement('a');transit.className='secondary inline-link';transit.target='_blank';transit.rel='noopener noreferrer';
+  const url=new URL($('yandexNav').href);url.searchParams.set('rtt','mt');transit.href=url.href;
+  transit.textContent=tr('Маршрут на транспорте ↗','Public transport route ↗');box.append(transit);
+ }
+ $('routeDetail').textContent=tr('Пешком · путь и время — в Яндексе','Walking · distance and time in Yandex');
+ $('rerollRoute').hidden=false;
+ status('Маршрут готов. На карте — Яндекс; время и длину показывает Яндекс.','Route ready in Yandex Maps, including walking time and distance.');
+ scrollMap();
+ return true;
+}
 async function build(surprise=false){
+ if(buildOnYandex(surprise))return;
  if(!start.value.trim()){status('Выбери начало: введи адрес или нажми «Моё положение».','Choose a start: enter an address or use My location.',true);start.setAttribute('aria-invalid','true');start.focus();return}
  cancel();const id=generation,abort=new AbortController();controller=abort;const timer=setTimeout(()=>abort.abort('timeout'),90000);busy(true);resetRoute();status('Строим пеший маршрут…','Building your walking route…');
  try{await window.CityRouteAI.apply(abort.signal);if(id!==generation)return;const a=await resolve(start,0,abort.signal);const loop=document.querySelector('[name="routeMode"]:checked').value==='loop';const autoEnd=!loop&&!end.value.trim();const b=loop?a:autoEnd?null:await resolve(end,1,abort.signal);if(id!==generation)return;

@@ -61,6 +61,7 @@ try{
  try{await page.locator('.cityroute-map-cta').waitFor({state:'visible',timeout:10000})}catch(error){
   console.error('ROUTE DEBUG',JSON.stringify(await page.evaluate(()=>({
     formStatus:document.getElementById('formStatus')?.textContent,
+    errorStack:window.cityrouteLastBuildError,
     routeStatus:document.getElementById('routeStatus')?.textContent,
     waypointCount:document.querySelectorAll('.cityroute-step-plan li').length,
     distanceApi:!!window.CityRouteDistance,

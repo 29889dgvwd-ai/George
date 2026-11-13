@@ -60,11 +60,17 @@ jobs:
           ln -s /tmp/cityroute-e2e/node_modules/playwright-core site-src/tests/node_modules/playwright-core
           CHROME_PATH="$CHROME_PATH" node site-src/tests/yandex-browser.mjs
           CHROME_PATH="$CHROME_PATH" node site-src/tests/postgres-browser.mjs
+      - name: Package static website for hosting
+        run: |
+          rm -f CityRoute-hosting-ready.zip
+          (cd docs && zip -q -r ../CityRoute-hosting-ready.zip .)
+          test -s CityRoute-hosting-ready.zip
+          unzip -t CityRoute-hosting-ready.zip | tail -n 1
       - name: Push latest site to docs folder
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f docs
+          git add -f docs CityRoute-hosting-ready.zip
           if ! git diff --cached --quiet; then
             git commit -m "publish: refreshed CityRoute site from latest sources"
             git push

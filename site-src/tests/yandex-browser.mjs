@@ -47,6 +47,8 @@ try{
  check(await page.locator('#nearbyDisclosure').evaluate(el=>el.open),'Nearby places section opened');
  const count=await page.locator('#placesList > div').count();
  check(count>=12,'Instant fallback places visible offline: '+count);
+ check(await page.locator('.place-list-card').count()>=12,'Nearby places render as photo-ready cards');
+ check(await page.locator('.place-list-card .place-list-actions a').count()>=12,'Every place has its own Yandex photos/reviews link');
  await page.locator('#placeQuery').fill('Парк');
  const filtered=await page.locator('#placesList > div').count();
  check(filtered>=1&&filtered<count,'Place search filters without server');
@@ -60,6 +62,8 @@ try{
  check(link.searchParams.get('rtt')==='pd','Pedestrian route');
  check(link.searchParams.get('rtext')?.includes('55.735'),'GPS coordinates included in Yandex walking route');
  check(await page.locator('.cityroute-quick-stops li').count()>=2,'Stops appear in itinerary');
+ check(await page.locator('.cityroute-step-plan').count()===1,'Walking itinerary has a connected visible step-by-step scheme');
+ check(await page.locator('.cityroute-step-leg a').count()>=1,'Each walking leg has real navigation links');
  check(await page.locator('#rerollRoute').isVisible(),'Route variant button is visible');
  await page.locator('.cityroute-save-route').click();
  check((await page.evaluate(()=>JSON.parse(localStorage.getItem('cityroute-saved-itineraries-v1')||'[]')))[0]?.v===3,'Save works');

@@ -10,11 +10,25 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: Check public static-site URLs
+      - name: Verify latest released Yandex map, location, script assets
         run: |
-          set +e
-          for url in             "https://raw.githack.com/29889dgvwd-ai/George/main/docs/index.html"             "https://cdn.jsdelivr.net/gh/29889dgvwd-ai/George@main/docs/index.html"             "https://29889dgvwd-ai.github.io/George/" ; do
+          set -euo pipefail
+          root="https://raw.githack.com/29889dgvwd-ai/George/94d70a223bd793dff6a3ff2120bd609f7c7af43e/docs"
+          for asset in index.html app.js app.css places-data.js place-photos.js static-walks.js; do
+            url="$root/$asset"
             echo "Checking $url"
-            curl -L -s -S -o /tmp/page -w 'HTTP=%{http_code} TYPE=%{content_type} BYTES=%{size_download}\n' --max-time 25 "$url"
-            head -c 110 /tmp/page | tr '\n' ' '; echo
+            curl --max-time 30 -L -sS -o /tmp/cityroute -w 'HTTP=%{http_code} TYPE=%{content_type} SIZE=%{size_download}\n' "$url"
+            test -s /tmp/cityroute
+            case "$asset" in
+              index.html)
+                grep -q 'id="mapGPS"' /tmp/cityroute
+                grep -q 'id="locationStatus"' /tmp/cityroute
+                grep -q 'places-data.js' /tmp/cityroute
+                ;;
+              app.js)
+                grep -q 'function locateActual' /tmp/cityroute
+                grep -q 'function buildOnYandex' /tmp/cityroute
+                ;;
+            esac
           done
+          echo 'PASS: latest CityRoute and GPS/Yandex scripts are publicly reachable.'

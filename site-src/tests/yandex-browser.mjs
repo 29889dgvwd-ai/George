@@ -58,7 +58,7 @@ try{
  await page.locator('#startPoint').fill('Красная площадь');
  await page.locator('#routeStyle').selectOption('direct');
  await page.locator('#endPoint').fill('Парк «Зарядье»');
- await page.locator('#budgetRange').fill('1500');
+ await page.locator('#budgetRange').evaluate(el=>{el.value='1500';el.dispatchEvent(new Event('input',{bubbles:true}))});
  check(await page.locator('#budgetAmount').inputValue()==='1500','Budget slider and input synchronized');
  await page.locator('#company-date').check();
  check(await page.locator('[name=people][value="2"]').isChecked(),'Date is exactly two people');

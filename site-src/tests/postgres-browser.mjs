@@ -79,7 +79,7 @@ try{
  await page.locator('#pgReload').click();
  await page.locator('.postgres-route').first().waitFor({state:'visible'});
  await page.locator('#pgSaveSettings').click();
- await page.waitForFunction(()=>document.getElementById('pgStatus')?.textContent?.includes('настройки')||document.getElementById('pgStatus')?.textContent?.includes('settings'),{timeout:7000});
+ await page.waitForFunction(()=>document.getElementById('pgStatus')?.textContent?.includes('сохранены')||document.getElementById('pgStatus')?.textContent?.includes('saved'),{timeout:7000});
  assert.equal(settingsSaved[0]?.owner_id,fakeUserId,'Cloud settings belong to current user');
  await page.locator('#pgLogout').click();
  await page.locator('#pgAuthForm').waitFor({state:'visible'});

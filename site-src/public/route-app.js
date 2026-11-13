@@ -12,6 +12,7 @@ const dom=(tag,cls,text)=>{const e=document.createElement(tag);if(cls)e.classNam
 const read=(key,alternative)=>{try{return JSON.parse(localStorage.getItem(key)||'null')??alternative}catch{return alternative}};
 const write=(key,value)=>{try{localStorage.setItem(key,JSON.stringify(value));return true}catch{return false}};
 let state={selected:[],results:[],route:null,variant:0,geo:null,favourites:new Set(read(FAVS,[])),lastQuery:'',lastSource:''};
+let lastPhotoKey='';
 const allowedCity=()=>/^(москва|moscow)(\s*,.*)?$/i.test(city.value.trim());
 const norm=P.norm;
 const isLoop=()=>form.querySelector('[name="routeMode"]:checked')?.value==='loop';
@@ -47,12 +48,12 @@ function routeUrl(waypoints,transport=false){
  return 'https://yandex.ru/maps/?'+params.toString();
 }
 function resetMap(){
- const p=new URLSearchParams({ll:'37.6173,55.7558',z:'14',lang:'ru_RU'});
+ const p=new URLSearchParams({ll:'37.6173,55.7558',z:'14',lang:document.body.classList.contains('english')?'en_RU':'ru_RU'});
  map.src='https://yandex.ru/map-widget/v1/?'+p.toString();
  $('yandexNav').href='https://yandex.ru/maps/?'+p.toString();
 }
 function setMap(waypoints){
- const params=new URLSearchParams({rtext:waypoints.map(mapAddress).filter(Boolean).join('~'),rtt:'pd',lang:'ru_RU'});
+ const params=new URLSearchParams({rtext:waypoints.map(mapAddress).filter(Boolean).join('~'),rtt:'pd',lang:document.body.classList.contains('english')?'en_RU':'ru_RU'});
  map.src='https://yandex.ru/map-widget/v1/?'+params.toString();
  $('yandexNav').href=routeUrl(waypoints);
 }
@@ -111,7 +112,7 @@ function localPlaceSearch(){
 }
 function searchPlaces({focus=false}={}){
  if(!allowedCity()){
-  state.results=[];$('placesList').replaceChildren();$('placesGallery').replaceChildren();
+  state.results=[];$('placesList').replaceChildren();$('placesGallery').replaceChildren();lastPhotoKey='';
   $('placesStatus').textContent=tr('Каталог остановок сейчас доступен для Москвы. Для другого города можно указать адреса старта и финиша и открыть маршрут в Яндекс Картах.','The local places catalogue currently covers Moscow. You can still enter addresses in any city and open directions in Yandex Maps.');
   $('externalPlaceSearch').href='https://yandex.ru/maps/?'+new URLSearchParams({text:(city.value.trim()||'')+' '+($('placeSearch')?.value||'')}).toString();return;
  }
@@ -163,7 +164,7 @@ function viewPlace(p){
 function renderPlaceList(){
  const list=$('placesList');list.replaceChildren();
  const listItems=state.results.slice(0,90);
- if(!listItems.length){list.append(dom('p','field-note',tr('В этой категории ничего не найдено. Измени запрос или фильтр.','No matches. Change the search or filter.')));$('placesGallery').replaceChildren();return}
+ if(!listItems.length){list.append(dom('p','field-note',tr('В этой категории ничего не найдено. Измени запрос или фильтр.','No matches. Change the search or filter.')));$('placesGallery').replaceChildren();lastPhotoKey='';return}
  const fragment=document.createDocumentFragment();
  for(const p of listItems){
   const row=dom('div','place-search-row'),textBox=dom('div','place-search-name');
@@ -177,7 +178,8 @@ function renderPlaceList(){
  }
  list.append(fragment);
  const photoItems=state.results.slice(0,6);
- window.CityRoutePhotos?.render(photoItems,$('placesGallery'),{tr,focus:viewPlace});
+ const photoKey=photoItems.map(p=>p.id).join('|')+'|'+document.body.classList.contains('english');
+ if(photoKey!==lastPhotoKey){lastPhotoKey=photoKey;window.CityRoutePhotos?.render(photoItems,$('placesGallery'),{tr,focus:viewPlace});}
 }
 function randomPick(list,limit=3){
  const arr=[...list];
@@ -401,8 +403,8 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('mapSection').cla
 $('returnStart').onclick=()=>{
  const value=state.route?.waypoints?.[0]||startValue();
  if(!value){$('returnStatus').textContent=tr('Сначала задай точку старта.','Set a starting point first.');return}
- const href=routeUrl(['',value]);
- const link=$('returnLink');link.href=href;link.hidden=false;
+ const params=new URLSearchParams({rtext:'~'+mapAddress(value),rtt:'pd'});
+ const link=$('returnLink');link.href='https://yandex.ru/maps/?'+params.toString();link.hidden=false;
  $('returnStatus').textContent=tr('Открой Яндекс Карты, чтобы построить путь от текущего местоположения к старту.','Open Yandex Maps to plan a walk from your current position back to the start.');
 };
 $('locateReal').onclick=()=>{
@@ -423,7 +425,8 @@ $('language').addEventListener('click',()=>{
  document.body.classList.toggle('english');document.documentElement.lang=document.body.classList.contains('english')?'en':'ru';
  $('language').textContent=document.body.classList.contains('english')?'RU':'EN';
  if(state.route){routeExplanation(state.route);photosForRoute(state.route);showTransport(state.route)}
- if(state.results.length){searchPlaces()}
+ if(state.route){setMap(state.route.waypoints)}else resetMap();
+ if(state.results.length){lastPhotoKey='';searchPlaces()}
 });
 $('theme').addEventListener('click',()=>document.body.classList.toggle('dark'));
 syncPeople();syncMode();updateBudget($('budgetAmount').value);

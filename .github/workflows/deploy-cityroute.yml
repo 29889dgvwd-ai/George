@@ -24,6 +24,8 @@ jobs:
       - name: Verify source and routes
         run: |
           node --check site-src/public/app.js
+          node --check site-src/public/postgres-client.js
+          node --check site-src/public/postgres-ui.js
           node --check site-src/public/place-photos.js
           node --check site-src/public/itinerary.js
           node --check site-src/public/static-walks.js
@@ -38,6 +40,9 @@ jobs:
           test -s docs/index.html
           test -s docs/app.js
           test -s docs/place-photos.js
+          test -s docs/postgres-client.js
+          test -s docs/postgres-ui.js
+          grep -q 'id="postgresPanel"' docs/index.html
           grep -q 'id="liveMap"' docs/index.html
           grep -q 'id="rerollRoute"' docs/index.html
           grep -q 'place-photos.js' docs/index.html

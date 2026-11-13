@@ -371,7 +371,7 @@ $('budgetAmount').addEventListener('input',e=>{if(e.target.value!=='')$('budgetR
 for(const el of form.querySelectorAll('[name=company]'))el.addEventListener('change',()=>{syncPeople();clearBuilt()});
 for(const el of form.querySelectorAll('[name=routeMode]'))el.addEventListener('change',()=>{syncMode();clearBuilt()});
 for(const el of form.querySelectorAll('[data-preference],[name=mood],[name=transport]'))el.addEventListener('change',()=>{clearBuilt();if($('nearbyPlaces'))searchPlaces()});
-for(const el of [start,end,city,$('distance'),$('routeStyle'),$('walkTime'),$('foodPreference')].filter(Boolean))el.addEventListener('change',()=>{if(el===start)state.geo=null;clearBuilt()});
+for(const el of [start,end,city,$('distance'),$('routeStyle'),$('walkTime'),$('foodPreference')].filter(Boolean))el.addEventListener('change',()=>{if(el===start)state.geo=null;if(el===city){state.selected=[];state.results=[];renderSelected();$('placesList').replaceChildren();$('placesGallery').replaceChildren();lastPhotoKey='';}clearBuilt()});
 for(const el of [city,start,end,$('gptNotes')]){
  if(!el)continue;
  const bad=/(^|[^\p{L}])(хуй\p{L}*|пизд\p{L}*|бляд\p{L}*|сука|ебать|ебан\p{L}*|мудак)(?=$|[^\p{L}])/iu;

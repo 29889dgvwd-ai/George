@@ -73,5 +73,13 @@ jobs:
           git add -f docs CityRoute-hosting-ready.zip
           if ! git diff --cached --quiet; then
             git commit -m "publish: refreshed CityRoute site from latest sources"
-            git push
+            # A concurrent edit may have advanced main between checkout and publish.
+            # Rebase the generated commit and retry rather than discarding the site.
+            for attempt in 1 2 3; do
+              if git push; then exit 0; fi
+              git fetch origin main
+              git rebase origin/main
+            done
+            echo "Publish push failed after three attempts."
+            exit 1
           fi

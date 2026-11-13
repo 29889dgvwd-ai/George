@@ -1,0 +1,20 @@
+name: Verify CityRoute live links
+on:
+  push:
+    paths:
+      - '.github/workflows/verify-cityroute.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check public static-site URLs
+        run: |
+          set +e
+          for url in             "https://raw.githack.com/29889dgvwd-ai/George/main/docs/index.html"             "https://cdn.jsdelivr.net/gh/29889dgvwd-ai/George@main/docs/index.html"             "https://29889dgvwd-ai.github.io/George/" ; do
+            echo "Checking $url"
+            curl -L -s -S -o /tmp/page -w 'HTTP=%{http_code} TYPE=%{content_type} BYTES=%{size_download}\n' --max-time 25 "$url"
+            head -c 110 /tmp/page | tr '\n' ' '; echo
+          done

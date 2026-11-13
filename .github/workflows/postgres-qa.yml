@@ -1,0 +1,21 @@
+name: PostgreSQL live API and RLS verification
+on:
+  push:
+    paths:
+      - '.github/workflows/postgres-qa.yml'
+      - 'site-src/postgres/**'
+      - 'site-src/public/postgres-client.js'
+      - 'site-src/tests/postgres-live.mjs'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  postgres-live:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify real PostgreSQL Data API and Row Level Security
+        run: node site-src/tests/postgres-live.mjs

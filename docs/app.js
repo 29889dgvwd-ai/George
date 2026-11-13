@@ -476,7 +476,7 @@ async function buildOnYandex(surprise=false){
   status('Маршрут с обходными точками готов. Если карта пустая — нажми «Схема».','Walking detour ready. If the map is blank, select Diagram.');
   scrollMap();return true;
  }catch(error){
-  if(buildId===generation)status('Ошибка построения: '+(error?.message||'неизвестно'),'Routing error: '+(error?.message||'unknown'),true);
+  window.cityrouteLastBuildError=String(error?.stack||error);if(buildId===generation)status('Ошибка построения: '+(error?.message||'неизвестно'),'Routing error: '+(error?.message||'unknown'),true);
   return true;
  }finally{clearTimeout(timer);if(buildId===generation)busy(false)}
 }

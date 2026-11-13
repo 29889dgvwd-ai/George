@@ -74,7 +74,7 @@
    const first=i===0,lastIdx=i===pts.length-1,number=first?'А':lastIdx?'Б':String(i);
    svg.append(svgEl('circle',{cx:p.x,cy:p.y,r:16,fill:first?'#16866b':lastIdx?'#315bea':'#1e293b',stroke:'white','stroke-width':3}));
    const txt=svgEl('text',{x:p.x,y:p.y+4.8,'text-anchor':'middle','font-size':13,'font-weight':'800',fill:'white'});
-   txt.textContent=lastIdx&&good&&stops[0].lat===stops[lastIdx].lat&&stops[0].lng===stops[lastIdx].lng?'А':number;
+   txt.textContent=lastIdx&&good&&stops[0].lat===stops[i].lat&&stops[0].lng===stops[i].lng?'А':number;
    svg.append(txt);
   });
   if(options.requestedKm){

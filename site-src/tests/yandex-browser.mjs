@@ -112,6 +112,30 @@ try{
  await page.waitForFunction(()=>{const q=new URL(document.getElementById('yandexNav').href);return (q.searchParams.get('rtext')||'').includes('Санкт-Петербург');},{timeout:11000});
  link=new URL(await page.locator('#yandexNav').getAttribute('href'));
  check(link.searchParams.get('rtext')?.includes('Санкт-Петербург'),'Typed endpoints route in other cities');
+
+ // Reproduce the user's iPhone report: known metro names, twelve-kilometer
+ // target, and endpoints that are actually much further than 12 km apart.
+ await page.goto(base+'/',{waitUntil:'domcontentloaded'});
+ await page.locator('#startPoint').fill('метро ясенево');
+ await page.locator('#endPoint').fill('рязанский проспект');
+ await page.locator('#distance').evaluate(el=>{el.value='12';el.dispatchEvent(new Event('change',{bubbles:true}));});
+ await page.locator('#buildReal').click();
+ await page.locator('#suggestLoopRoute').waitFor({state:'visible',timeout:6000});
+ check((await page.locator('.route-distance-alert').innerText()).includes('друг от друга'),'Too-distant endpoints are reported, not treated as a fake 12 km walk');
+ check(await page.locator('.cityroute-step-plan li').count()===2,'Impossible 12 km point-to-point walk is clearly distinguished from a real planned route');
+ await page.locator('#suggestLoopRoute').click();
+ await page.waitForFunction(()=>{
+   const url=new URL(document.getElementById('yandexNav').href);
+   return (url.searchParams.get('rtext')||'').split('~').length>=5
+ },{timeout:14000});
+ check(await page.locator('.cityroute-step-plan li').count()>=5,'12 km nearby loop has intermediate points and returns to the station');
+ const planned=new URL(await page.locator('#yandexNav').getAttribute('href'));
+ const pts=planned.searchParams.get('rtext').split('~');
+ check(pts[0]===pts.at(-1),'Metro Yasenevo loop ends at the original start');
+ check(await page.locator('.cityroute-map-rescue-svg').isVisible(),'iPhone always has route diagram even when third-party map is unavailable');
+ check(await page.locator('.place-list-price').count()>=1,'Nearby food venues show sourced average checks or honest missing-data state');
+ const nearFood=await page.locator('.place-list-card').filter({hasText:'«Оазис»'}).count();
+ check(nearFood>=1,'Near-Yasenevo cafe included in the searchable catalogue');
  check(!errors.length,'No JS errors: '+errors.join('; '));
  check(!forbidden.length,'No OSM raster tiles loaded');
  console.log('PASS: real GPS, precise Yandex center, fast offline place search, itinerary, save/restore, round trip, other cities and map controls.');

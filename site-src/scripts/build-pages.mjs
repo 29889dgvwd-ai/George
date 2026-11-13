@@ -1,7 +1,7 @@
 import {cpSync,mkdirSync,readFileSync,writeFileSync} from 'node:fs';
 import {join,resolve} from 'node:path';
 const root=resolve(import.meta.dirname,'..');
-const out=resolve(root,'../../_site');
+const out=resolve(root,'../_site');
 mkdirSync(out,{recursive:true});
 cpSync(join(root,'public'),out,{recursive:true,force:true});
 const fix=html=>html

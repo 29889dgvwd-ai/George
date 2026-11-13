@@ -76,7 +76,7 @@ function payloadToRow(route){
  const finish=route.loop?'Круговой маршрут':route.finish||points[1]?.label||waypoints.at(-1)?.name||waypoints.at(-1)?.label||'Финиш';
  return {
   title:txt(origin+' → '+finish,150),start_title:txt(origin,200),end_title:txt(finish,200),
-  kilometers:Math.max(0,Math.min(2000,Number(route.data?.trip?.summary?.length)||0)),
+  kilometers:Math.max(0,Math.min(2000,Number(route.distanceKm)||Number(route.data?.trip?.summary?.length)||0)),
   minutes:Math.max(0,Math.min(100000,Math.round(Number(route.data?.trip?.summary?.time||0)/60))),
   stops,polyline:[],prefs:{style:route.style||'all',loop:!!route.loop,city:route.city||'Москва'},
   payload:route,updated_at:new Date().toISOString()

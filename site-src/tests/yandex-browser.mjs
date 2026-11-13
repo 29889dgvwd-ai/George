@@ -58,7 +58,17 @@ try{
  check(await page.locator('#chosenStops button').count()===1,'Choose stop works');
  await page.locator('#endPoint').fill('Парк Горького');
  await page.locator('#buildReal').click();
- await page.locator('.cityroute-map-cta').waitFor({state:'visible',timeout:5000});
+ try{await page.locator('.cityroute-map-cta').waitFor({state:'visible',timeout:10000})}catch(error){
+  console.error('ROUTE DEBUG',JSON.stringify(await page.evaluate(()=>({
+    formStatus:document.getElementById('formStatus')?.textContent,
+    routeStatus:document.getElementById('routeStatus')?.textContent,
+    waypointCount:document.querySelectorAll('.cityroute-step-plan li').length,
+    distanceApi:!!window.CityRouteDistance,
+    start:document.getElementById('startPoint')?.value,
+    end:document.getElementById('endPoint')?.value,
+    scripts:[...document.querySelectorAll('script[src]')].map(s=>s.getAttribute('src'))
+  })),null,2),'PAGE ERRORS',errors);throw error;
+ }
  let link=new URL(await page.locator('#yandexNav').getAttribute('href'));
  check(link.searchParams.get('rtt')==='pd','Pedestrian route');
  check(link.searchParams.get('rtext')?.includes('55.735'),'GPS coordinates included in Yandex walking route');

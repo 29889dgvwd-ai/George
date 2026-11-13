@@ -2,13 +2,13 @@
 'use strict';
 const $=id=>document.getElementById(id),start=$('startPoint'),end=$('endPoint'),city=$('city');
 const form=$('routeForm'),buttons=[$('buildReal'),$('buildMap'),$('surprise'),$('nearbyPlaces'),$('findPlacesTop')],cache=new Map();
-let currentRoutePath=[],currentRoutePlaces=[];let itinerary=null;let googleBridge=null;let avoidance=null;let map,points=[null,null],markers=[null,null],routeLayer=null,pickMode=0,generation=0,controller=null;
+let currentRoutePath=[],currentRoutePlaces=[];let itinerary=null;let avoidance=null;let map,points=[null,null],routeLayer=null,generation=0,controller=null;
 const english=()=>document.body.classList.contains('english');
 const tr=(ru,en)=>english()?en:ru;
 function status(ru,en,error=false){for(const el of [$('formStatus'),$('routeStatus')]){el.textContent=tr(ru,en||ru);el.setAttribute('role',error?'alert':'status')}}
 function busy(value){buttons.forEach(b=>{b.disabled=value;b.setAttribute('aria-busy',String(value))});$('buildReal').querySelector('.ru').textContent=value?'Строим маршрут…':'Построить маршрут';$('buildReal').querySelector('.en').textContent=value?'Building…':'Build route'}
 function cancel(){generation++;controller?.abort();controller=null;busy(false)}
-function resetRoute(){currentRoutePath=[];currentRoutePlaces=[];$('rerollRoute').hidden=true;updateYandex();itinerary?.clear();googleBridge?.stops([]);$('transportResult').replaceChildren();$('transportResult').hidden=true;googleBridge?.route([]);$('scenicResult').replaceChildren();$('scenicResult').hidden=true;if(routeLayer){map?.removeLayer(routeLayer);routeLayer=null}$('routeDetail').textContent=''}
+function resetRoute(){currentRoutePath=[];currentRoutePlaces=[];$('rerollRoute').hidden=true;updateYandex();itinerary?.clear();$('transportResult').replaceChildren();$('transportResult').hidden=true;$('scenicResult').replaceChildren();$('scenicResult').hidden=true;if(routeLayer){map?.removeLayer(routeLayer);routeLayer=null}$('routeDetail').textContent=''}
 function showWalkingMap(){document.body.classList.add('yandex-widget-active');$('mapProvider').textContent=tr('Яндекс Карты · пеший путь по выбранным остановкам','Yandex Maps · walking route via your selected stops');updateYandex();}
 function updateYandex(){const coords=p=>Array.isArray(p)?p:[p.lat,p.lng];const stops=currentRoutePath.length?[currentRoutePath[0],...currentRoutePlaces.map(p=>coords(p.routePoint||p)),currentRoutePath.at(-1)]:points.filter(Boolean).map(coords);const url=new URL('https://yandex.ru/maps/');url.search=new URLSearchParams(stops.length>1?{rtext:stops.map(p=>p.join(',')).join('~'),rtt:'pd'}:{ll:stops.length?stops[0][1]+','+stops[0][0]:'37.6173,55.7558',z:'14'}).toString();$('yandexNav').href=url.href;if(document.body.classList.contains('yandex-widget-active')){const frame=new URL('https://yandex.ru/map-widget/v1/');frame.search=url.search;if($('yandexWidget').src!==frame.href)$('yandexWidget').src=frame.href;}}
 // Yandex iframe: clicking/dragging a point is not exposed to this site without Yandex JS API key.
@@ -137,7 +137,7 @@ function drawPlaces(places){
   // This map has no editable POI layer. Places are selected from the accessible list below.
  }
  $('placesStatus').textContent=tr('Найдено '+visible.length+' мест. Добавь остановки кнопками в списке ниже (до 3).','Found '+visible.length+' places. Use Add stop in the list below (up to 3).');
- googleBridge?.places(visible.slice(0,180),choosePlace);
+ 
 }
 $('nearbyPlaces').onclick=async(event)=>{
  cancel();const id=generation,abort=new AbortController();controller=abort;busy(true);$('placesStatus').textContent=tr('Ищем места…','Finding places…');
@@ -146,7 +146,7 @@ $('nearbyPlaces').onclick=async(event)=>{
  finally{if(id===generation){busy(false);controller=null}}
 };
 function showScenic(places,note,layer){
- currentRoutePlaces=places;googleBridge?.stops(places);
+ currentRoutePlaces=places;
  const box=$('scenicResult');box.hidden=false;
  const heading=document.createElement('h3');heading.textContent=places.length?tr('Места на маршруте','Places on your walk'):tr('О маршруте','About this route');box.append(heading);
  for(const [i,p] of places.entries()){
@@ -175,7 +175,7 @@ async function build(surprise=false){
  if(!start.value.trim()){status('Выбери начало: введи адрес или нажми «Моё положение».','Choose a start: enter an address or use My location.',true);start.setAttribute('aria-invalid','true');start.focus();return}
  cancel();const id=generation,abort=new AbortController();controller=abort;const timer=setTimeout(()=>abort.abort('timeout'),90000);busy(true);resetRoute();status('Строим пеший маршрут…','Building your walking route…');
  try{await window.CityRouteAI.apply(abort.signal);if(id!==generation)return;const a=await resolve(start,0,abort.signal);const loop=document.querySelector('[name="routeMode"]:checked').value==='loop';const autoEnd=!loop&&!end.value.trim();const b=loop?a:autoEnd?null:await resolve(end,1,abort.signal);if(id!==generation)return;
-  mark(0,a,start.value);if(b&&!loop)mark(1,b,end.value);else{points[1]=null;googleBridge?.point(1,null);if(markers[1])map.removeLayer(markers[1]);markers[1]=null}
+  mark(0,a,start.value);if(b&&!loop)mark(1,b,end.value);else{points[1]=null;}
   const hours=Number($('walkTime').value);const distance=Math.min(Number($('distance').value)||3,pref('short')?3:Infinity,hours?hours*3:Infinity),kind=$('routeStyle').value;let selectedPlaces=[],scenicNote='';
   const placesTask=kind!=='direct'&&!chosen.length?scenicPlaces(a,loop?null:b,distance,kind,abort.signal).then(value=>({value}),error=>({error})):null;
   async function getPlaces(){const result=await placesTask;if(result?.error)throw result.error;return result?.value||[]}
@@ -321,22 +321,22 @@ async function build(surprise=false){
   if(kind!=='direct'||selectedPlaces.length||data.avoidanceNote)showScenic(selectedPlaces,[data.avoidanceNote,scenicNote].filter(Boolean).join(' ')||tr('Путь проходит через выбранные остановки. Доступность и часы работы уточняй перед посещением.','The route goes through selected stops. Check opening hours and accessibility.'),routeLayer);
   if(document.querySelector('[name="transport"]:checked')?.value==='transit')showTransport(data,selectedPlaces,loop);
   itinerary?.show({data,places:selectedPlaces,points:points.map(p=>p&&({...p})),loop,city:city.value,style:$('routeStyle').value,transit:document.querySelector('[name=transport]:checked')?.value==='transit',note:[data.avoidanceNote,scenicNote].filter(Boolean).join(' '),settings:captureSettings()});
-  currentRoutePath=path;googleBridge?.route(path);updateYandex();showWalkingMap();$('rerollRoute').hidden=false;
-  map.fitBounds(routeLayer.getBounds(),{padding:[50,50],maxZoom:16});$('routeDetail').textContent=data.trip.summary.length.toFixed(1)+' '+tr('км','km')+' · '+Math.max(1,Math.round(data.trip.summary.time/60))+' '+tr('мин','min');
+  currentRoutePath=path;updateYandex();showWalkingMap();$('rerollRoute').hidden=false;
+  $('routeDetail').textContent=data.trip.summary.length.toFixed(1)+' '+tr('км','km')+' · '+Math.max(1,Math.round(data.trip.summary.time/60))+' '+tr('мин','min');
   status(loop?'Круговой маршрут готов: финиш у старта.':selectedPlaces.length?'Маршрут готов. Остановок: '+selectedPlaces.length+'.':autoEnd?(surprise?'Случайный маршрут готов. Финиш — у точки Б.':'Маршрут готов. Финиш выбран автоматически — точка Б.'):'Маршрут до конечной точки готов.',loop?'Round trip ready: finish at the start.':selectedPlaces.length?'Your scenic route is ready.':autoEnd?'Your route is ready. The selected destination is point B.':'Your route to the destination is ready.');scrollMap();
  }catch(e){if(id!==generation)return;status(abort.signal.reason==='timeout'?'Сервис долго не отвечает. Попробуй ещё раз.':e.message||'Не удалось построить маршрут.',abort.signal.reason==='timeout'?'Service timed out. Please try again.':e.message||'Could not build route.',true)}finally{clearTimeout(timer);if(id===generation){busy(false);controller=null}}
 }
 document.querySelectorAll('[data-preference], [name=transport], [name=mood]').forEach(input=>input.addEventListener('change',()=>{cancel();resetRoute();avoidance=null;status('Настройки изменены. Построй маршрут заново.','Preferences changed. Rebuild your route.')}));
 form.addEventListener('submit',e=>{e.preventDefault();build()});$('buildMap').onclick=()=>build();$('surprise').onclick=()=>build(true);$('rerollRoute').onclick=()=>build(true);
-$('clearReal').onclick=()=>{googleBridge?.clear();chosen=[];drawChosen();if(poiLayer)map.removeLayer(poiLayer);nearby=[];$('placesList').replaceChildren();googleBridge?.places([],choosePlace);$('placesStatus').textContent='';cancel();resetRoute();points=[null,null];markers.forEach(m=>m&&map.removeLayer(m));markers=[null,null];start.value=end.value='';start.removeAttribute('aria-invalid');end.removeAttribute('aria-invalid');pickMode=0;status('Нужна только начальная точка.','Only a starting point is needed.')};
-$('locateReal').onclick=()=>{if(!navigator.geolocation){status('Геолокация недоступна. Введи адрес.','Location is unavailable. Enter an address.',true);return}status('Определяем твоё положение…','Finding your location…');navigator.geolocation.getCurrentPosition(pos=>{cancel();resetRoute();const p={lat:pos.coords.latitude,lng:pos.coords.longitude};mark(0,p,tr('Моё положение','My location'));map.setView(p,15);status('Начало выбрано. Нажми «Построить маршрут».','Start selected. Click Build route.')},()=>status('Не удалось определить положение. Введи адрес начала прогулки.','Could not find your location. Enter your starting address.',true),{enableHighAccuracy:false,timeout:10000})};
+$('clearReal').onclick=()=>{chosen=[];drawChosen();if(poiLayer)map.removeLayer(poiLayer);nearby=[];$('placesList').replaceChildren();$('placesStatus').textContent='';cancel();resetRoute();points=[null,null];start.value=end.value='';start.removeAttribute('aria-invalid');end.removeAttribute('aria-invalid');status('Нужна только начальная точка.','Only a starting point is needed.')};
+$('locateReal').onclick=()=>{if(!navigator.geolocation){status('Геолокация недоступна. Введи адрес.','Location is unavailable. Enter an address.',true);return}status('Определяем твоё положение…','Finding your location…');navigator.geolocation.getCurrentPosition(pos=>{cancel();resetRoute();const p={lat:pos.coords.latitude,lng:pos.coords.longitude};mark(0,p,tr('Моё положение','My location'));status('Начало выбрано. Нажми «Построить маршрут».','Start selected. Click Build route.')},()=>status('Не удалось определить положение. Введи адрес начала прогулки.','Could not find your location. Enter your starting address.',true),{enableHighAccuracy:false,timeout:10000})};
 
 function captureSettings(){return [...form.querySelectorAll('input,select,textarea')].filter(e=>e.id||e.name||e.dataset.preference).map(e=>({id:e.id,name:e.name,value:e.value,preference:e.dataset.preference,checked:e.checked}));}
 function restoreSettings(settings){for(const saved of settings||[]){const el=[...form.querySelectorAll('input,select,textarea')].find(e=>saved.id?e.id===saved.id:saved.preference?e.dataset.preference===saved.preference:e.name===saved.name&&e.value===saved.value);if(!el)continue;if(el.type==='checkbox'||el.type==='radio')el.checked=!!saved.checked;else el.value=saved.value;}syncPeople();syncRouteMode();}
 itinerary=window.CityRouteItinerary.create({decode,tr,focus:p=>{const u=new URL('https://yandex.ru/maps/');u.search=new URLSearchParams({ll:p.lng+','+p.lat,z:'17'});window.open(u.href,'_blank','noopener,noreferrer')},fit:()=>$('fitRoute').click(),restore:r=>{
- cancel();resetRoute();restoreSettings(r.settings);city.value=r.city;chosen=[];drawChosen();if(poiLayer)map.removeLayer(poiLayer);nearby=[];$('placesList').replaceChildren();googleBridge?.clear();googleBridge?.places([],choosePlace);
- points=[null,null];markers.forEach(m=>m&&map.removeLayer(m));markers=[null,null];r.points.forEach((p,i)=>{if(p)mark(i,p,p.label)});
- const path=pathOf(r.data);routeLayer=L.featureGroup([L.polyline(path,{color:'#315bea',weight:6})]);showScenic(r.places,r.note,routeLayer);if(r.transit)showTransport(r.data,r.places,r.loop);currentRoutePath=path;googleBridge?.route(path);updateYandex();showWalkingMap();$('rerollRoute').hidden=false;map.fitBounds(routeLayer.getBounds(),{padding:[50,50],maxZoom:16});$('routeDetail').textContent=r.data.trip.summary.length.toFixed(1)+' '+tr('км','km');status('Открыт сохранённый маршрут.','Saved route opened.');scrollMap();
+ cancel();resetRoute();restoreSettings(r.settings);city.value=r.city;chosen=[];drawChosen();if(poiLayer)map.removeLayer(poiLayer);nearby=[];$('placesList').replaceChildren();
+ points=[null,null];r.points.forEach((p,i)=>{if(p)mark(i,p,p.label)});
+ const path=pathOf(r.data);routeLayer=L.featureGroup([L.polyline(path,{color:'#315bea',weight:6})]);showScenic(r.places,r.note,routeLayer);if(r.transit)showTransport(r.data,r.places,r.loop);currentRoutePath=path;updateYandex();showWalkingMap();$('rerollRoute').hidden=false;$('routeDetail').textContent=r.data.trip.summary.length.toFixed(1)+' '+tr('км','km');status('Открыт сохранённый маршрут.','Saved route opened.');scrollMap();
 }});
 try{const raw=sessionStorage.getItem('cityroute-open-walk');if(raw){sessionStorage.removeItem('cityroute-open-walk');const saved=JSON.parse(raw);if(window.CityRouteItinerary.valid(saved))itinerary.open(saved);}}catch{status('Не удалось открыть сохранённый маршрут.','Could not open saved route.',true);}
 showWalkingMap();status('Нужна только начальная точка.','Only a starting point is needed.');

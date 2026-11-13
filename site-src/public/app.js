@@ -19,7 +19,7 @@ function updateYandex(){
    if(/^[-+]?\d+\.\d+,\s*[-+]?\d+\.\d+$/.test(value))return value.replace(/\s+/g,'');
    return /москва|moscow/i.test(value)?value:(city.value.trim()||'Москва')+', '+value;
   }
-  return coord(p).every(Number.isFinite)?coord(p).join(','):'';
+  return coord(p).every(Number.isFinite)?coord(p).map(v=>Number(v).toFixed(6)).join(','):'';
  };
  const GPS=points[0]&&start.value===points[0].label?coord(points[0]):null;
  const endPoint=points[1]&&end.value===points[1].label?coord(points[1]):null;

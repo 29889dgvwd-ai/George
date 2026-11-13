@@ -1,0 +1,60 @@
+name: Publish CityRoute
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site-src/**'
+      - '.github/workflows/deploy-cityroute.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages-cityroute
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout latest CityRoute source
+        uses: actions/checkout@v4
+      - name: Use Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify JavaScript syntax
+        run: |
+          node --check site-src/public/app.js
+          node --check site-src/public/place-photos.js
+          node --check site-src/public/itinerary.js
+          node --check site-src/public/static-walks.js
+          node --check site-src/public/ai-offline.js
+          node --check site-src/scripts/build-pages.mjs
+      - name: Build portable latest CityRoute website
+        run: |
+          node site-src/scripts/build-pages.mjs
+          test -s _site/index.html
+          test -s _site/app.js
+          test -s _site/place-photos.js
+          grep -q 'id="liveMap"' _site/index.html
+          grep -q 'id="rerollRoute"' _site/index.html
+          grep -q 'place-photos.js' _site/index.html
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - name: Upload website
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Publish website
+        id: deployment
+        uses: actions/deploy-pages@v4

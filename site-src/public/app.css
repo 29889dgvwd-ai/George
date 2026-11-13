@@ -224,3 +224,11 @@ body.yandex-widget-active .map-shell iframe:focus-visible{outline:3px solid #4f7
 .dark .cityroute-map-rescue{background:linear-gradient(155deg,#203b3b,#1f2e4e)}
 .dark .cityroute-map-rescue,.dark .cityroute-map-rescue-head small,.dark .cityroute-map-rescue-empty{color:#edf4fd}
 @media(max-width:760px){.map-shell{min-height:420px}.cityroute-map-rescue{padding:14px}.cityroute-map-rescue-head{margin-top:44px}.cityroute-map-rescue-head strong{font-size:18px}.cityroute-map-rescue-svg{min-height:160px}.cityroute-map-toolbar-rescue{right:8px;top:8px;gap:5px}.cityroute-map-switch,.cityroute-map-standalone{padding:8px;font-size:11px}}
+
+
+/* Source attribution and visually honest distance-matching status. */
+.route-distance-summary{margin:12px 20px;padding:13px 15px;border-radius:13px;background:#e5f4ee;color:#145b47;font-weight:800;font-size:14px;line-height:1.5}
+.dark .route-distance-summary{background:#1c473b;color:#c6f3e0}
+.place-photo-license{position:absolute;left:9px;bottom:8px;z-index:3;font-size:10px;line-height:1.3;text-decoration:none;background:#111a27d9;color:#fff!important;padding:5px 8px;border-radius:7px;max-width:calc(100% - 18px)}
+.place-photo-thumbs~.place-photo-license{bottom:56px}
+.place-photo-license:focus-visible{outline:2px solid white}

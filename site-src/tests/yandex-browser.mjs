@@ -81,7 +81,7 @@ try{
  check(await page.locator('.cityroute-map-rescue').isVisible(),'Fallback diagram is usable when Yandex iframe is empty');
  check(await page.locator('.cityroute-map-rescue-svg').isVisible(),'Fallback has visible route geometry');
  await page.evaluate(()=>window.CityRouteMapRescue.showMap());
- await page.locator('#distance').selectOption('12');
+ await page.locator('#distance').evaluate(el=>{el.value='12';el.dispatchEvent(new Event('change',{bubbles:true}));});
  await page.locator('#buildReal').click();
  await page.locator('.route-distance-summary').waitFor({state:'visible',timeout:7000});
  const fullDistanceLink=new URL(await page.locator('#yandexNav').getAttribute('href'));

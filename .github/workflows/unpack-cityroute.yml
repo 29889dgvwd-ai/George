@@ -1,0 +1,40 @@
+name: Unpack CityRoute source
+on:
+  push:
+    paths:
+      - '.github/workflows/unpack-cityroute.yml'
+      - 'CityRoute-source.zip'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unpack source into site-src folder
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/cityroute-unpack
+          unzip -q CityRoute-source.zip -d /tmp/cityroute-unpack
+          echo "Archive structure:"
+          find /tmp/cityroute-unpack -maxdepth 3 -type f | head -80
+          mkdir -p site-src
+          if [ -f /tmp/cityroute-unpack/CityRoute/package.json ]; then
+            cp -a /tmp/cityroute-unpack/CityRoute/. site-src/
+          elif [ -f /tmp/cityroute-unpack/package.json ]; then
+            cp -a /tmp/cityroute-unpack/. site-src/
+          else
+            echo "Missing expected package.json in archive"; exit 1
+          fi
+          find site-src -name node_modules -prune -exec rm -rf {} +
+          find site-src -name .git -prune -exec rm -rf {} +
+      - name: Commit original source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add site-src
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: extract current CityRoute source for repair"
+            git push
+          fi

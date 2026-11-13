@@ -40,6 +40,7 @@ try{
  await page.locator('#mapGPS').click();
  await page.waitForFunction(()=>document.getElementById('startPoint')?.value==='55.735000,37.580000',{timeout:7000});
  check((await page.locator('#locationStatus').innerText()).includes('GPS'),'GPS success message');
+ await page.waitForFunction(()=>new URL(document.getElementById('yandexWidget').src).searchParams.get('ll')==='37.580000,55.735000',{timeout:3500});
  const gpsFrame=new URL(await page.locator('#yandexWidget').getAttribute('src'));
  check(gpsFrame.searchParams.get('ll')==='37.580000,55.735000','Yandex map centers exactly on GPS');
  check(await page.locator('#locationOnMap').isVisible(),'Full Yandex location link available');
@@ -64,6 +65,18 @@ try{
  check(await page.locator('.cityroute-quick-stops li').count()>=2,'Stops appear in itinerary');
  check(await page.locator('.cityroute-step-plan').count()===1,'Walking itinerary has a connected visible step-by-step scheme');
  check(await page.locator('.cityroute-step-leg a').count()>=1,'Each walking leg has real navigation links');
+ check(await page.evaluate(()=>!!window.CityRouteMapRescue),'Map fallback is initialized');
+ await page.evaluate(()=>window.CityRouteMapRescue.showDiagram());
+ check(await page.locator('.cityroute-map-rescue').isVisible(),'Fallback diagram is usable when Yandex iframe is empty');
+ check(await page.locator('.cityroute-map-rescue-svg').isVisible(),'Fallback has visible route geometry');
+ await page.evaluate(()=>window.CityRouteMapRescue.showMap());
+ await page.locator('#distance').selectOption('12');
+ await page.locator('#buildReal').click();
+ await page.locator('.route-distance-summary').waitFor({state:'visible',timeout:7000});
+ const fullDistanceLink=new URL(await page.locator('#yandexNav').getAttribute('href'));
+ check((fullDistanceLink.searchParams.get('rtext')||'').split('~').length>=4,'12km route has additional scenic detour waypoints rather than 2km shortcut');
+ check((await page.locator('.route-distance-summary').innerText()).includes('12'),'Requested 12km appears in route distance summary');
+
  check(await page.locator('#rerollRoute').isVisible(),'Route variant button is visible');
  await page.locator('.cityroute-save-route').click();
  check((await page.evaluate(()=>JSON.parse(localStorage.getItem('cityroute-saved-itineraries-v1')||'[]')))[0]?.v===3,'Save works');

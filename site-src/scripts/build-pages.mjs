@@ -1,7 +1,7 @@
 import {cpSync,mkdirSync,readFileSync,writeFileSync} from 'node:fs';
 import {join,resolve} from 'node:path';
 const root=resolve(import.meta.dirname,'..');
-const out=resolve(root,'../_site');
+const out=resolve(root,'../docs');
 mkdirSync(out,{recursive:true});
 cpSync(join(root,'public'),out,{recursive:true,force:true});
 const fix=html=>html
@@ -33,4 +33,4 @@ const friends=`<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta 
 <section class="card" style="padding:28px"><h2>Как поделиться прогулкой</h2><p>На главной построй маршрут — появятся остановки, фотографии и ссылка «Открыть в Яндекс Картах». Отправь её другу, чтобы он увидел точки и смог построить свой путь.</p><p class="field-note">Аккаунты и приглашения на этой бесплатной статической версии пока недоступны. Все сохранения находятся только в твоём браузере.</p><a class="primary inline-link" href="index.html" style="max-width:240px;margin-top:18px">Построить маршрут →</a></section></main><script defer src="static-shell.js"></script></body></html>`;
 writeFileSync(join(out,'friends.html'),friends);
 writeFileSync(join(out,'.nojekyll'),'');
-console.log('Built static CityRoute based on latest full source, ready for GitHub Pages');
+console.log('Built static CityRoute based on latest full source, ready for GitHub Pages or a static host');

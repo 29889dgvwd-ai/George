@@ -41,6 +41,15 @@ jobs:
           grep -q 'id="liveMap"' docs/index.html
           grep -q 'id="rerollRoute"' docs/index.html
           grep -q 'place-photos.js' docs/index.html
+      - name: Browser smoke test (mobile · Yandex map only)
+        run: |
+          set -e
+          CHROME_PATH="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          echo "Chrome: $CHROME_PATH"
+          npm install --prefix /tmp/cityroute-e2e --no-save --silent playwright-core@1.58.0
+          mkdir -p site-src/tests/node_modules
+          ln -s /tmp/cityroute-e2e/node_modules/playwright-core site-src/tests/node_modules/playwright-core
+          CHROME_PATH="$CHROME_PATH" node site-src/tests/yandex-browser.mjs
       - name: Push latest site to docs folder
         run: |
           git config user.name "github-actions[bot]"

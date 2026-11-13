@@ -95,16 +95,32 @@ const raw=[
 ['«Буше» в Центральном детском магазине','food','bakery',55.7595,37.6256,'','Театральный проезд, 5'],
 ['Кондитерская «Счастье» в ГУМе','food','bakery',55.7547,37.6220,'','Красная площадь, 3'],
 ['Кофемания «Ленинский рынок»','food','cafe',55.6541,37.5238,'','Ленинский проспект, 108'],
+/* Address-verified places around Yasenevo; actual photos available by link to Yandex Maps. */
+['«Шава-гриль» в Ясенево','food','restaurant',55.609507,37.526663,'','Литовский бульвар, 4'],
+['Кафе «Оазис» в Ясенево','food','cafe',55.612019,37.554915,'','улица Рокотова, 2А'],
 /* Shopping (shown only when explicitly selected) */
 ['ГУМ','malls','malls',55.7549,37.6225,'ГУМ','Красная площадь, 3'],
 ['ЦУМ','malls','malls',55.7610,37.6193,'ЦУМ (Москва)','Петровка, 2'],
 ['ТЦ «Авиапарк»','malls','malls',55.7904,37.5319,'Авиапарк (торговый центр)','Ходынский бульвар, 4'],
 ['ТЦ «Европейский»','malls','malls',55.7451,37.5662,'Европейский (торговый центр)','площадь Киевского Вокзала, 2']
 ];
+// Only venue-specific publicly published bills; never infer live pricing from category.
+const checks={
+ '«Шава-гриль» в Ясенево':{label:'до 1 000 ₽',source:'https://www.afisha.ru/msk/restaurant/shava-gril-442915/'},
+ 'Кафе «Оазис» в Ясенево':{label:'1 200–1 400 ₽',source:'https://yandex.com/maps/org/oazis/1039665596/'},
+ 'Кафе «Пушкинъ»':{label:'3 000–4 000 ₽',source:'https://www.restoran.ru/msk/detailed/restaurants/cafepushkin/'},
+ 'Кондитерская «Кафе Пушкинъ»':{label:'1 000–2 000 ₽',source:'https://allcafe.ru/msk/restoran/kafe-pushkin/'}
+};
+// City-wide verified metro station anchors let walking routes work when public
+// geocoders are blocked by CORS or a mobile carrier.
+const metroAliases=[
+ {name:'Метро «Ясенево»',lat:55.606306,lng:37.533406,aliases:['метро ясенево','станция метро ясенево','м ясенево','yasenevo metro','yasenevo subway'],source:'https://vmetro.moscow/station/yasenevo/'},
+ {name:'Метро «Рязанский проспект»',lat:55.717546,lng:37.793593,aliases:['рязанский проспект','метро рязанский проспект','станция метро рязанский проспект','м рязанский проспект','ryazansky prospekt metro'],source:'https://www.mos.ru/upload/documents/files/5045/5_Prilojenie5.pdf'}
+];
 const items=raw.map(([name,type,category,lat,lng,wiki,address],i)=>({
   id:'curated-msk-'+i,name,type,category,lat,lng,
   address:address||name+', Москва',tags:wiki?{wikipedia:'ru:'+wiki}:{},
-  source:'curated'
+  source:'curated',check:checks[name]||null
 }));
 const norm=s=>String(s||'').toLocaleLowerCase('ru').replace(/ё/g,'е').replace(/[«»"']/g,'').replace(/[^\p{L}\p{N} ]/gu,' ').replace(/\s+/g,' ').trim();
 function haversine(a,b){
@@ -112,7 +128,14 @@ function haversine(a,b){
  const y=(b.lat-a.lat)*111.2,x=(b.lng-a.lng)*111.2*Math.cos(a.lat*Math.PI/180);
  return Math.hypot(x,y);
 }
+function metroLookup(q){
+ const term=norm(q);
+ for(const item of metroAliases)if(item.aliases.some(alias=>norm(alias)===term))
+  return {id:'metro-'+item.name,name:item.name,lat:item.lat,lng:item.lng,category:'metro',type:'transit',address:item.name+', Москва',source:'verified-metro',coordinatesSource:item.source,tags:{}};
+ return null;
+}
 function lookup(q){
+ const metro=metroLookup(q);if(metro)return metro;
  const term=norm(q);if(term.length<3)return null;
  const found=items.find(p=>norm(p.name)===term||norm(p.address)===term);
  if(found)return found;
@@ -120,5 +143,5 @@ function lookup(q){
  ranked.sort((a,b)=>Math.abs(a.n.length-term.length)-Math.abs(b.n.length-term.length));
  return ranked[0]?.p||null;
 }
-window.CityRoutePlaces={items,haversine,norm,lookup};
+window.CityRoutePlaces={items,haversine,norm,lookup,metroLookup};
 })();

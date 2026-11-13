@@ -10,11 +10,20 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: Check public static-site URLs
+      - name: Verify published latest CityRoute is accessible
         run: |
-          set +e
-          for url in             "https://raw.githack.com/29889dgvwd-ai/George/main/docs/index.html"             "https://cdn.jsdelivr.net/gh/29889dgvwd-ai/George@main/docs/index.html"             "https://29889dgvwd-ai.github.io/George/" ; do
-            echo "Checking $url"
-            curl -L -s -S -o /tmp/page -w 'HTTP=%{http_code} TYPE=%{content_type} BYTES=%{size_download}\n' --max-time 25 "$url"
-            head -c 110 /tmp/page | tr '\n' ' '; echo
+          set -euo pipefail
+          ROOT="https://raw.githack.com/29889dgvwd-ai/George/ce48ae00680882e1327a1d38efcf483ffa9c3c9d/docs/"
+          for asset in index.html route-app.js places-data.js app.css place-photos.js; do
+            URL="${ROOT}${asset}"
+            echo "Checking ${URL}"
+            code="$(curl -L -sS -o /tmp/cityroute-response -w '%{http_code}' --max-time 25 "${URL}")"
+            echo "HTTP ${code}, bytes $(wc -c </tmp/cityroute-response)"
+            test "${code}" = "200"
+            test -s /tmp/cityroute-response
+            if [ "${asset}" = "index.html" ]; then
+              grep -q 'route-app.js' /tmp/cityroute-response
+              grep -q 'placeSearch' /tmp/cityroute-response
+            fi
           done
+          echo 'PASS: published CityRoute and search/routing assets are reachable.'

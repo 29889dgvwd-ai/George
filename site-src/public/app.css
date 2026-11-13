@@ -37,3 +37,47 @@
 #yandexWidget{position:absolute;inset:0;width:100%;height:100%;border:0;z-index:700;background:#eef0ec}body:not(.yandex-widget-active) #yandexWidget{display:none}.map-toolbar{flex-wrap:wrap;gap:10px}#yandexNav{font-size:13px;color:inherit}#aiStatus{white-space:pre-line}
 
 .return-card{margin:18px 0;padding:20px;border:1px solid var(--line,#d9dfd8);border-radius:18px;background:var(--surface,#f4f7f1)}.return-card h3{margin:0 0 6px}.return-card .field-note{margin:8px 0 12px}.return-card [hidden]{display:none!important}.dark .return-card{background:#202820;border-color:#3b453b}
+
+/* CityRoute November refresh — route visible first, cards visually complete. */
+body:not(.yandex-widget-active) #liveMap{visibility:visible}
+.map-shell{position:relative;min-width:0}
+#liveMap{height:620px;min-height:410px}
+.scenic-result:not([hidden]),.transport-result:not([hidden]){display:block;margin:18px 26px 22px}
+.scenic-result>h3{font-size:19px;margin:8px 0 14px}
+.scenic-result>p.scenic-place{font-size:14px;margin:6px 0}
+.scenic-result>.field-note{margin:14px 0 18px}
+.place-photo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:16px;margin:20px 0}
+.place-photo-card{background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 8px 28px #12263b0b;min-width:0}
+.place-photo-media{height:204px;position:relative;background:linear-gradient(140deg,#e7f2eb,#dbe8f2);overflow:hidden;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px}
+.dark .place-photo-media{background:linear-gradient(140deg,#273c3c,#2b3b4e)}
+.place-photo-placeholder{font-size:38px;opacity:.6}
+.place-photo-caption{font-size:12px;color:#51677a;text-align:center;padding:0 12px}
+.dark .place-photo-caption{color:#cedae4}
+.place-photo-image{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center}
+.place-photo-thumbs{position:absolute;bottom:8px;left:8px;right:8px;display:flex;gap:6px;align-items:center;justify-content:center;max-width:100%}
+.place-photo-thumb{width:42px;height:34px;border:2px solid #fff9;background:#fff;border-radius:7px;overflow:hidden;padding:0;box-shadow:0 2px 8px #1117}
+.place-photo-thumb.active{border:3px solid #222}
+.place-photo-thumb img{width:100%;height:100%;object-fit:cover}
+.place-photo-info{position:relative;padding:18px}
+.place-photo-index{display:inline-block;padding:4px 7px;background:var(--soft);color:var(--accent);border-radius:8px;font-size:12px;font-weight:800;margin-bottom:9px}
+.place-photo-info h4{font-size:17px;line-height:1.25;margin:0;overflow-wrap:anywhere}
+.place-photo-info p{font-size:13px;color:var(--muted);margin:8px 0 16px}
+.place-photo-actions{display:flex;flex-wrap:wrap;gap:8px}
+.place-photo-link{font-size:12px;font-weight:650;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;text-decoration:none;padding:8px 10px;border:1px solid var(--line);color:var(--text);background:var(--card);white-space:normal}
+.place-photo-link:hover{border-color:var(--accent)}
+#rerollRoute:not([hidden]){background:#15243a;color:#fff;border-color:#15243a;font-weight:700}
+.pick input:checked+span{background:#151b24;color:white;border-color:#151b24}
+.dark .pick input:checked+span{background:#050608;border-color:#718099;color:white}
+.map-toolbar button,.map-actions button{transition:background .15s ease}
+.map-tools button:hover,.map-actions button:hover{border-color:var(--accent)}
+@media(max-width:900px){.journey-layout #liveMap{height:520px}}
+@media(max-width:540px){
+ .map-shell{margin:0 6px;border-radius:12px}
+ .journey-layout #liveMap{height:58svh;min-height:390px}
+ .map-footer{padding:16px;flex-wrap:wrap}
+ .map-actions{justify-content:flex-start}
+ .map-toolbar{padding:0 16px 14px}
+ .scenic-result:not([hidden]),.transport-result:not([hidden]){margin:16px}
+ .place-photo-grid{grid-template-columns:1fr;gap:12px}
+ .place-photo-media{height:232px}
+}

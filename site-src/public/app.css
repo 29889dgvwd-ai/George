@@ -135,3 +135,38 @@ body.yandex-widget-active .map-shell iframe:focus-visible{outline:3px solid #4f7
  .map-gps-button{padding:8px 9px!important;font-size:12px!important}
  .quick-saved-panel{padding:16px}
 }
+
+/* PostgreSQL cloud: optional account, private routes and predictable mobile layout. */
+.postgres-panel{margin:20px auto;padding:24px 26px;border:1px solid var(--line);max-width:1100px}
+.postgres-panel h2{font-size:22px;margin:0 0 8px}
+.postgres-panel>.field-note{max-width:780px;font-size:13px;line-height:1.65;margin:8px 0 18px}
+.postgres-auth{display:grid;grid-template-columns:minmax(150px,1fr) minmax(150px,1fr);gap:8px 14px;align-items:end;max-width:760px}
+.postgres-auth label{font-size:13px;font-weight:700;color:var(--text)}
+.postgres-auth input{width:100%;min-width:0;height:43px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;color:var(--text);background:var(--card);font:inherit}
+.postgres-auth input:focus{outline:2px solid #557be9;outline-offset:2px}
+.postgres-auth .postgres-actions{grid-column:1/-1;display:flex;gap:10px;margin:7px 0 0}
+.postgres-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.postgres-actions button{min-height:41px;padding:10px 14px;max-width:100%;white-space:normal;text-align:center}
+.postgres-actions button:disabled{opacity:.55;cursor:progress}
+.postgres-member-line{display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:space-between;margin:15px 0;font-weight:700}
+.postgres-member-line span{font-size:13px;overflow-wrap:anywhere}
+.postgres-routes{display:grid;grid-template-columns:1fr;gap:9px;margin-top:16px}
+.postgres-route{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--bg);display:flex;gap:16px;justify-content:space-between;align-items:center}
+.postgres-route-body{display:flex;flex-direction:column;gap:4px;min-width:0}
+.postgres-route strong{font-size:13px;overflow-wrap:anywhere}
+.postgres-route small{color:var(--muted);font-size:11px}
+.postgres-route-actions{display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0}
+.postgres-route-actions button{padding:8px 11px;font-size:12px}
+#pgStatus{margin:15px 0 0;min-height:18px;overflow-wrap:anywhere}
+#pgStatus[role="alert"]{color:#a84545}
+#pgAuthForm[hidden],#pgMember[hidden],#pgRoutes[hidden]{display:none!important}
+@media(max-width:700px){
+ .postgres-panel{margin:18px 10px;padding:18px 14px}
+ .postgres-panel h2{font-size:19px}
+ .postgres-auth{grid-template-columns:1fr}
+ .postgres-auth .postgres-actions{grid-column:auto}
+ .postgres-actions{align-items:stretch}
+ .postgres-actions button{flex:1}
+ .postgres-route{align-items:stretch;flex-direction:column}
+ .postgres-route-actions button{flex:1}
+}

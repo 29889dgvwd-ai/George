@@ -5,7 +5,15 @@
 const cache=new Map(),sourceByUrl=new Map();
 const TAG='cityroute-commons-images-v5:',TTL=5*24*3600*1000;
 // Exact, verified Wikimedia Commons categories for identified Moscow venues.
-const verifiedCategories={'Кафе «Пушкинъ»':'Category:Café Pouchkine','Кондитерская «Кафе Пушкинъ»':'Category:Café Pouchkine'};
+const verifiedCategories={
+ 'Кафе «Пушкинъ»':'Category:Café Pouchkine',
+ 'Кондитерская «Кафе Пушкинъ»':'Category:Café Pouchkine',
+ 'Красная площадь':'Category:Red Square',
+ 'Московский Кремль':'Category:Moscow Kremlin',
+ 'Парк «Зарядье»':'Category:Zaryadye Park',
+ 'Парк Горького':'Category:Gorky Park (Moscow)',
+ 'Государственная Третьяковская галерея':'Category:Main building of Tretyakov Gallery - exterior'
+};
 const text=(ru,en)=>document.body.classList.contains('english')?en:ru;
 const imageFile=f=>'https://commons.wikimedia.org/wiki/Special:Redirect/file/'+encodeURIComponent(String(f).replace(/^File:/,'').replaceAll(' ','_'))+'?width=900';
 const safeUrl=x=>{try{const u=new URL(String(x||''));return u.protocol==='https:'?u.href:''}catch{return ''}};

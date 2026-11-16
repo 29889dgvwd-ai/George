@@ -98,6 +98,12 @@ async function removeRoute(id){
  if(!uuid.test(id||''))throw Error('Некорректный идентификатор маршрута.');
  await request('/rest/v1/routes?id=eq.'+encodeURIComponent(id),{method:'DELETE',auth:true})
 }
+async function checkConnection(){
+ // A real anonymous REST read, not a static 'connected' label.
+ const rows=await request('/rest/v1/cityroute_places?select=id&limit=1');
+ if(!Array.isArray(rows))throw Error('PostgreSQL returned an invalid response');
+ return {online:true};
+}
 async function listPlaces(){
  const rows=await request('/rest/v1/cityroute_places?select=id,name,city,type,category,latitude,longitude,address,wikipedia&city=eq.'+encodeURIComponent('Москва')+'&order=name.asc&limit=250');
  return (Array.isArray(rows)?rows:[]).map(p=>({
@@ -135,7 +141,7 @@ async function saveSettings(value){
   preferences:value.preferences&&typeof value.preferences==='object'?value.preferences:{}};
  return request('/rest/v1/cityroute_settings?on_conflict=owner_id',{method:'POST',auth:true,body:[body],prefer:'resolution=merge-duplicates,return=minimal'})
 }
-window.CityRouteCloud={BASE,current,signIn,signUp,signOut,saveRoute,listRoutes,removeRoute,
+window.CityRouteCloud={BASE,checkConnection,current,signIn,signUp,signOut,saveRoute,listRoutes,removeRoute,
  listPlaces,listFavorites,saveFavorite,readSettings,saveSettings,
  isSignedIn:()=>Boolean(session?.access_token),getUser:()=>session?.user||null};
 void current();

@@ -14,6 +14,9 @@ const request=async path=>{
 const places=await request('/rest/v1/cityroute_places?select=id,name,city&type=eq.parks&limit=10');
 assert.equal(places.status,200,'Public PostgreSQL places must be readable');
 assert(Array.isArray(places.body)&&places.body.length>=4,'Moscow parks should be seeded');
+const allPlaces=await request('/rest/v1/cityroute_places?select=id&limit=180');
+assert.equal(allPlaces.status,200,'Public catalog endpoint must be available');
+assert(Array.isArray(allPlaces.body)&&allPlaces.body.length>=140,'The expanded Moscow catalog must contain at least 140 places');
 const personal=await request('/rest/v1/routes?select=id,owner_id&limit=5');
 assert([200,401,403].includes(personal.status),'Private routes should be blocked for anonymous users');
 if(personal.status===200)assert(Array.isArray(personal.body)&&personal.body.length===0,'Anon must not read user routes');

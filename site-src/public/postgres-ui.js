@@ -107,5 +107,16 @@ $('pgSaveSettings').addEventListener('click',()=>wrap(async()=>{
  message('Тема, язык и предпочтения сохранены в PostgreSQL.','Theme, language and preferences saved to PostgreSQL.')
 }));
 window.CityRouteCloudUI={refresh:()=>fetchSaved().catch(()=>{})};
-void updateUser().then(ok=>{if(ok)return fetchSaved();message('Облако готово. Вход необязателен.','Cloud ready. Signing in is optional.')}).catch(()=>message('База пока не отвечает. Локальное сохранение продолжает работать.','Cloud unavailable. Local routes are still available.',true));
+void (async()=>{
+ try{
+  // Only report a verified connection after the real database answers.
+  await cloud.checkConnection();
+  const signed=await updateUser();
+  if(signed)await fetchSaved();
+  else message('✓ PostgreSQL проверен: каталог Москвы доступен. Вход необязателен.','✓ PostgreSQL verified: Moscow catalogue online. Signing in is optional.');
+ }catch(e){
+  await updateUser().catch(()=>{});
+  message('Проверка PostgreSQL не прошла: '+(e?.message||'нет ответа')+'. Доступен локальный каталог.','PostgreSQL check failed: '+(e?.message||'no response')+'. Local catalogue remains available.',true);
+ }
+})();
 })();

@@ -114,7 +114,11 @@ function cachedPlaces(key){const hit=placeCache.get(key);if(hit&&Date.now()-hit.
 function savePlaces(key,places){const entry={key,places,time:Date.now()};if(placeCache.size>=8)placeCache.delete(placeCache.keys().next().value);placeCache.set(key,entry);try{sessionStorage.setItem('cityroute-places-v2',JSON.stringify(entry))}catch{}}
 function beauty(p){const t=p.tags||{};let score=({water:1000,parks:900,sights:750,art:550,culture:350,food:80,books:70,malls:0})[p.type]||0;if(['playground','dog_park'].includes(t.leisure))score-=650;if(t.wikidata||t.wikipedia)score+=160;const mood=document.querySelector('[name="mood"]:checked')?.value;if((mood==='romantic'&&['water','parks'].includes(p.type))||(mood==='calm'&&p.type==='parks'))score+=300;return score}
 let lastScenicId=null,poiLayer=null,nearby=[],chosen=[],placesRequestId=0,placeSearchTimer=0;
-const meters=(a,b)=>L.latLng(a).distanceTo(b);
+const meters=(a,b)=>{
+ const point=p=>Array.isArray(p)?{lat:Number(p[0]),lng:Number(p[1])}:p;
+ const km=window.CityRouteDistance?.km(point(a),point(b));
+ return Number.isFinite(km)?km*1000:Infinity;
+};
 function pathOf(data){return data.trip.legs.flatMap(l=>decode(l.shape))}
 function repeats(path){
  const edges=new Set();let repeated=0,total=0;
@@ -670,7 +674,7 @@ function restoreSettings(settings){for(const saved of settings||[]){const el=[..
 itinerary=window.CityRouteItinerary.create({decode,tr,focus:p=>{const u=new URL('https://yandex.ru/maps/');u.search=new URLSearchParams({ll:p.lng+','+p.lat,z:'17'});window.open(u.href,'_blank','noopener,noreferrer')},fit:()=>$('fitRoute').click(),restore:r=>{
  cancel();resetRoute();restoreSettings(r.settings);city.value=r.city;chosen=[];drawChosen();if(poiLayer)map.removeLayer(poiLayer);nearby=[];$('placesList').replaceChildren();
  points=[null,null];r.points.forEach((p,i)=>{if(p)mark(i,p,p.label)});
- const path=pathOf(r.data);routeLayer=L.featureGroup([L.polyline(path,{color:'#315bea',weight:6})]);if(r.transit)showTransport(r.data,r.places,r.loop);currentRoutePath=path;updateYandex();showWalkingMap();$('rerollRoute').hidden=false;$('routeDetail').textContent=r.data.trip.summary.length.toFixed(1)+' '+tr('км','km');status('Открыт сохранённый маршрут.','Saved route opened.');scrollMap();
+ const path=pathOf(r.data);if(r.transit)showTransport(r.data,r.places,r.loop);currentRoutePath=path;updateYandex();showWalkingMap();$('rerollRoute').hidden=false;$('routeDetail').textContent=r.data.trip.summary.length.toFixed(1)+' '+tr('км','km');status('Открыт сохранённый маршрут.','Saved route opened.');scrollMap();
 }});
 try{const raw=sessionStorage.getItem('cityroute-open-walk');if(raw){sessionStorage.removeItem('cityroute-open-walk');const saved=JSON.parse(raw);if(saved?.v===3)openQuickSaved(saved);else if(window.CityRouteItinerary.valid(saved))itinerary.open(saved);}}catch{status('Не удалось открыть сохранённый маршрут.','Could not open saved route.',true);}
 showWalkingMap();renderQuickSaved();if(!$('routeDetail').textContent)status('Нужна только начальная точка.','Only a starting point is needed.');

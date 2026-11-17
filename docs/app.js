@@ -246,7 +246,7 @@ function drawPlaces(places){
  
 }
 $('findPlacesTop').onclick=()=>{
- $('nearbyDisclosure').open=true;
+ $('nearbyDisclosure').open=false;
  $('nearbyPlaces').click();
  $('nearbyDisclosure').scrollIntoView({behavior:'smooth',block:'start'});
 };
@@ -259,7 +259,7 @@ $('placeQuery').oninput=()=>{
 $('nearbyPlaces').onclick=async()=>{
  const requestId=++placesRequestId;
  // Always show local results first: search works offline and on paused free databases.
- $('nearbyDisclosure').open=true;
+ $('nearbyDisclosure').open=false;
  const instant=backupPlaces();drawPlaces(instant);
  const isMoscow=/^(москва|moscow)/i.test(city.value.trim());
  if(!isMoscow){
@@ -451,7 +451,7 @@ async function buildOnYandex(surprise=false){
   updateYandex();
   const panel=$('itinerary');panel.replaceChildren();
   const heading=document.createElement('h3');heading.className='quick-journey-title';
-  heading.textContent=loop?tr('Круговая прогулка','Round-trip walk'):tr('План прогулки по шагам','Your walking itinerary');
+  heading.textContent=loop?tr('Круговая прогулка','Round-trip walk'):tr('Маршрут','Your route');
   panel.append(heading);
   const measured=plannedStats?.measuredKm;
   const kmInfo=document.createElement('p');kmInfo.className='route-distance-summary';
@@ -477,9 +477,6 @@ async function buildOnYandex(surprise=false){
     };
     callout.append(heading,message,createLoop);panel.append(callout);
   }
-  const warning=document.createElement('p');warning.className='field-note';
-  warning.textContent=tr('Места по пути — ниже. Настоящую карту, расстояние и навигацию смотри в Яндекс Картах.','Places are listed below. Use Yandex Maps for the real map, distance and directions.');
-  panel.append(warning);
   const numeric=/^[-+]?\d+(?:\.\d+)?,\s*[-+]?\d+(?:\.\d+)?$/;
   const readable=(name,fallback)=>numeric.test(String(name||'').trim())?fallback:String(name||fallback);
   const pointLabel=(p,i)=>{
@@ -518,19 +515,8 @@ async function buildOnYandex(surprise=false){
       link.target='_blank';link.rel='noopener noreferrer';
       link.textContent=tr('Фотографии и отзывы в Яндексе ↗','Photos and reviews in Yandex ↗');
       media.append(link);body.append(media);
-      if(pictured.id&&window.CityRoutePhotos?.photos){
-        void window.CityRoutePhotos.photos(pictured).then(urls=>{
-          if(!body.isConnected||!urls?.length)return;
-          const image=document.createElement('img');image.alt=tr('Фото: ','Photo: ')+pictured.name;
-          image.loading='lazy';image.decoding='async';image.referrerPolicy='no-referrer';
-          image.onerror=()=>image.remove();image.src=urls[0];media.prepend(image);
-          const credit=window.CityRoutePhotos.sourceByUrl?.get?.(urls[0]);
-          if(credit?.source){
-            const attribution=document.createElement('a');attribution.className='cityroute-step-credit';
-            attribution.href=credit.source;attribution.target='_blank';attribution.rel='noopener noreferrer';
-            attribution.textContent=tr('Источник фото ↗','Photo source ↗');media.append(attribution);
-          }
-        }).catch(()=>{});
+      if(!p.generated && window.CityRoutePhotos?.renderInline){
+        window.CityRoutePhotos.renderInline(pictured,media);
       }
     }
 
@@ -577,7 +563,7 @@ async function buildOnYandex(surprise=false){
    const url=new URL($('yandexNav').href);url.searchParams.set('rtt','mt');a.href=url.href;
    a.textContent=tr('На транспорте ↗','Public transport ↗');box.append(a);
   }
-  if(moscow){drawPlaces(backupPlaces());$('nearbyDisclosure').open=true;}
+  if(moscow){drawPlaces(backupPlaces());$('nearbyDisclosure').open=false;}
   $('routeDetail').textContent=Number.isFinite(measured)?tr('Пешком ≈ '+measured.toFixed(1)+' км · цель '+requestedKm,'Walking ≈ '+measured.toFixed(1)+' km · target '+requestedKm):tr('Цель '+requestedKm+' км · проверить в Яндексе','Target '+requestedKm+' km · check Yandex');
   $('rerollRoute').hidden=false;
   if(plannedStats?.tooShort)status('Маршрут на '+requestedKm+' км не построен: финиш слишком далеко. Выбери другой финиш или круговой маршрут.','No '+requestedKm+' km route built: destination is too far. Choose another destination or a round trip.',true);

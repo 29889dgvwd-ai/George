@@ -3,7 +3,7 @@
    No Yandex scraping, random stock imagery, or unrelated photos. */
 (()=>{'use strict';
 const cache=new Map(),pendingPhotos=new Map(),sourceByUrl=new Map();
-const TAG='cityroute-commons-images-v6:',TTL=5*24*3600*1000,EMPTY_TTL=60*60*1000;
+const TAG='cityroute-commons-images-v7:',TTL=5*24*3600*1000,EMPTY_TTL=60*60*1000;
 // Exact, verified Wikimedia Commons categories for identified Moscow venues.
 const verifiedCategories={
  'Кафе «Пушкинъ»':'Category:Café Pouchkine',
@@ -103,6 +103,13 @@ async function photos(p){
  if(pendingPhotos.has(key))return pendingPhotos.get(key);
  const pending=(async()=>{
   const tags=p.tags||{},found=[];
+  if(p.name==='«Шава-гриль» в Ясенево'){
+    found.push(record('https://img03.rl0.ru/afisha/e900x500q85i/s3.afisha.ru/mediastorage/52/a7/1764a4488b8e4d2081dda9b2a752.jpg','https://www.afisha.ru/msk/restaurant/shava-gril-442915/','Афиша · Шава-гриль'));
+  }
+  for(const item of Array.isArray(p.photos)?p.photos:[]){
+    const url=typeof item==='string'?item:item?.url;
+    if(safeUrl(url))found.push(record(url,item?.source||p.source||url,item?.credit||p.name));
+  }
   if(tags.image){
    for(const raw of String(tags.image).split(';')){
     const url=raw.startsWith('File:')?imageFile(raw):safeUrl(raw);
@@ -192,5 +199,25 @@ function render(places,root,{tr,focus}){
   }).catch(()=>{caption.textContent=tr('Фото недоступны — проверь в Яндекс Картах','Photos unavailable — check Yandex Maps')});
  }
 }
-window.CityRoutePhotos={photos,render,sourceByUrl};
+function renderInline(p,root){
+ const rail=node('div','cityroute-stop-gallery');
+ rail.setAttribute('aria-label',text('Фотографии: ','Photos: ')+p.name);
+ // No oversized empty image boxes: the gallery appears only with actual photos.
+ void photos(p).then(urls=>{
+  if(!root.isConnected||!urls.length)return;
+  for(const [i,url] of urls.entries()){
+   const figure=node('figure','cityroute-stop-photo');
+   const link=node('a');link.href=sourceByUrl.get(url)?.source||url;
+   link.target='_blank';link.rel='noopener noreferrer';
+   const img=node('img');img.alt=p.name+' · '+text('фото ','photo ')+(i+1);
+   img.loading='lazy';img.decoding='async';img.referrerPolicy='no-referrer';
+   img.onerror=()=>{figure.remove();if(!rail.children.length)rail.remove()};
+   img.src=url;link.append(img);
+   const credit=node('figcaption','',sourceByUrl.get(url)?.credit||p.name);
+   figure.append(link,credit);rail.append(figure);
+  }
+  root.prepend(rail);
+ }).catch(()=>{});
+}
+window.CityRoutePhotos={photos,render,renderInline,sourceByUrl};
 })();

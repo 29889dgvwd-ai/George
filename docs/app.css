@@ -233,3 +233,12 @@ body.yandex-widget-active .map-shell iframe:focus-visible{outline:3px solid #4f7
 .place-photo-info .place-photo-bill{color:var(--text);font-size:12px;font-weight:800;margin:4px 0}
 .place-photo-info .place-photo-bill-source{font-size:11px;font-weight:700;color:var(--accent);display:inline-flex;text-decoration:none;margin:3px 0 8px}
 @media(max-width:760px){.route-distance-alert{margin:10px 12px;padding:13px}}
+
+/* Photos belong to the stop itself; swipe to see the remaining pictures. */
+.cityroute-stop-gallery{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;border-radius:12px}
+.cityroute-stop-photo{margin:0;flex:0 0 88%;min-width:0;scroll-snap-align:start}
+.cityroute-stop-photo:only-child{flex-basis:100%}
+.cityroute-stop-photo a{display:block}
+.cityroute-stop-gallery img{width:100%;max-width:none;height:180px;object-fit:cover;border-radius:12px}
+.cityroute-stop-photo figcaption{font-size:10px;color:var(--muted);padding:4px 0}
+@media(max-width:480px){.cityroute-step{gap:10px}.cityroute-step-marker{width:34px;height:34px;flex-basis:34px;font-size:14px}.cityroute-step-body{padding:14px;min-width:0}.cityroute-stop-gallery img{height:155px}}

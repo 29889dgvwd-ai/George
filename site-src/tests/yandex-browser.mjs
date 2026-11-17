@@ -52,7 +52,7 @@ try{
  check(await page.locator('.place-list-card').count()>=12,'Nearby places render as photo-ready cards');
  check(await page.locator('.place-list-card .place-list-actions a').count()>=12,'Every place has its own Yandex photos/reviews link');
  await page.locator('#placeQuery').fill('Парк');
- await page.waitForFunction(n=>document.querySelectorAll('#placesList > div').length<n,{timeout:2500},count);
+ await page.waitForFunction(n=>document.querySelectorAll('#placesList > div').length<n,count,{timeout:2500});
  const filtered=await page.locator('#placesList > div').count();
  check(filtered>=1&&filtered<count,'Place search filters without server');
  await page.locator('#placeQuery').fill('');

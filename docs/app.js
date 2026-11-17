@@ -459,17 +459,17 @@ async function buildOnYandex(surprise=false){
   kmInfo.textContent=Number.isFinite(measured)
     ?tr('Цель '+requestedKm+' км · пешеходный расчёт '+measured.toFixed(1)+' км'+(closeToGoal?' ✓':' · возможна разница'),'Target '+requestedKm+' km · walking estimate '+measured.toFixed(1)+' km'+(closeToGoal?' ✓':' · may differ'))
     :tr('Цель '+requestedKm+' км · промежуточные точки добавлены. Точную длину проверь в Яндексе.','Target '+requestedKm+' km · detour waypoints added. Confirm actual distance in Yandex.');
-  if(plannedStats?.tooShort)kmInfo.textContent=tr('Выбранные старт и финиш дальше '+requestedKm+' км по прямой — сократить путь до этой длины невозможно.','Start and finish are more than '+requestedKm+' km apart, so this target is impossible.');
+  if(plannedStats?.tooShort)kmInfo.textContent=tr('Маршрут на '+requestedKm+' км не построен: старт и финиш слишком далеко друг от друга.','No '+requestedKm+' km route was built: the starting point and destination are too far apart.');
   panel.append(kmInfo);
   if(plannedStats?.tooShort){
     const d=distanceEngine.km(waypoints[0],waypoints.at(-1));
     const callout=document.createElement('section');callout.className='route-distance-alert';
-    const heading=document.createElement('strong');heading.textContent=tr('Почему нет промежуточных точек?','Why are there no detour stops?');
+    const heading=document.createElement('strong');heading.textContent=tr('Маршрут выбранной длины невозможен','The requested distance is not possible');
     const message=document.createElement('p');
-    message.textContent=tr('Эти точки находятся примерно в '+d.toFixed(1)+' км друг от друга по прямой. Прогулка на '+requestedKm+' км между ними невозможна: дорога будет длиннее.','These points are about '+d.toFixed(1)+' km apart straight-line. A '+requestedKm+' km walk between them is impossible.');
+    message.textContent=tr('От старта до финиша '+d.toFixed(1)+' км по прямой. За '+requestedKm+' км туда пешком не дойти. Выбери ближний финиш или построй круговой маршрут около начала.','Start and destination are '+d.toFixed(1)+' km apart in a straight line. A '+requestedKm+' km walk cannot reach the destination. Choose a closer finish or take a loop near the start.');
     const createLoop=document.createElement('button');createLoop.type='button';createLoop.className='primary';
     createLoop.id='suggestLoopRoute';
-    createLoop.textContent=tr('↻ Построить '+requestedKm+' км вокруг старта','↻ Make '+requestedKm+' km loop near the start');
+    createLoop.textContent=tr('↻ Построить прогулку '+requestedKm+' км рядом со стартом','↻ Build a '+requestedKm+' km walk near the start');
     createLoop.onclick=()=>{
       const item=document.querySelector('[name="routeMode"][value="loop"]');
       if(item){item.checked=true;end.disabled=true;}
@@ -550,7 +550,9 @@ async function buildOnYandex(surprise=false){
   panel.append(steps);
   const action=document.createElement('a');action.className='primary inline-link cityroute-map-cta';
   action.href=$('yandexNav').href;action.target='_blank';action.rel='noopener noreferrer';
-  action.textContent=tr('Открыть весь маршрут в Яндекс Картах ↗','Open complete route in Yandex Maps ↗');
+  action.textContent=plannedStats?.tooShort
+    ?tr('Посмотреть путь до выбранного финиша в Яндексе ↗','See directions to your distant destination on Yandex ↗')
+    :tr('Открыть весь маршрут в Яндекс Картах ↗','Open complete route in Yandex Maps ↗');
   const save=document.createElement('button');save.type='button';save.className='secondary cityroute-save-route';
   save.textContent=tr('♡ Сохранить прогулку','♡ Save this walk');
   save.onclick=()=>{
@@ -578,7 +580,7 @@ async function buildOnYandex(surprise=false){
   if(moscow){drawPlaces(backupPlaces());$('nearbyDisclosure').open=true;}
   $('routeDetail').textContent=Number.isFinite(measured)?tr('Пешком ≈ '+measured.toFixed(1)+' км · цель '+requestedKm,'Walking ≈ '+measured.toFixed(1)+' km · target '+requestedKm):tr('Цель '+requestedKm+' км · проверить в Яндексе','Target '+requestedKm+' km · check Yandex');
   $('rerollRoute').hidden=false;
-  if(plannedStats?.tooShort)status('Расстояние между точками больше выбранной длины. Ниже кнопка «Построить вокруг старта».','Your endpoints are too far apart. Use the suggested loop near your start.',true);
+  if(plannedStats?.tooShort)status('Маршрут на '+requestedKm+' км не построен: финиш слишком далеко. Выбери другой финиш или круговой маршрут.','No '+requestedKm+' km route built: destination is too far. Choose another destination or a round trip.',true);
   else status('Маршрут готов: остановки в списке, путь в Яндекс Картах.','Route ready: stops are listed and the map is in Yandex.');
   scrollMap();return true;
  }catch(error){
@@ -647,6 +649,27 @@ function locateActual(){
   cancel();resetRoute();
   const coords=p.lat.toFixed(6)+','+p.lng.toFixed(6);
   mark(0,p,tr('Моё местоположение','My location'));lastLocated=p;
+  // Resolve a readable nearby address when possible; never lose GPS precision.
+  // This is an optional public geocoder request, not a blocking prerequisite.
+  const expectedLabel=start.value,expectedGeneration=generation;
+  void (async()=>{
+   try{
+    const url='https://photon.komoot.io/reverse?'+new URLSearchParams({
+      lat:p.lat.toFixed(6),lon:p.lng.toFixed(6),lang:'ru'
+    });
+    const result=await fetch(url,{signal:AbortSignal.timeout(2800)});
+    if(!result.ok)return;
+    const properties=(await result.json()).features?.[0]?.properties||{};
+    const street=[properties.street,properties.housenumber].filter(Boolean).join(', ');
+    const name=street||[properties.name,properties.city||properties.district].filter(Boolean).join(', ');
+    if(name&&name.length<=140&&start.value===expectedLabel&&generation===expectedGeneration&&
+       points[0]?.lat===p.lat&&points[0]?.lng===p.lng){
+       const label=name+(properties.city&&!name.includes(properties.city)?', '+properties.city:'');
+       points[0].label=label;start.value=label;
+       status('Местоположение определено. Старт: '+label+'.','Location found. Start: '+label+'.');
+    }
+   }catch{}
+  })();
   const accuracy=Math.round(Number(pos.coords.accuracy)||0);
   $('locationStatus').textContent=tr('✓ Местоположение определено · точность '+accuracy+' м.','✓ Location found · accuracy '+accuracy+' m.');
   const url=new URL('https://yandex.ru/maps/');

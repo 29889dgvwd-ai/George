@@ -316,7 +316,9 @@ async function buildOnYandex(surprise=false){
  const moscow=/^(москва|moscow)/i.test(city.value.trim());
  const loop=document.querySelector('[name="routeMode"]:checked')?.value==='loop';
  const style=$('routeStyle').value;
- const requestedKm=Math.max(1,Math.min(12,Number($('distance').value)||3,pref('short')?3:12));
+ const unrestricted=$('distance').value==='auto';
+ let requestedKm=unrestricted?5:Math.max(1,Math.min(35,Number($('distance').value)||5));
+ if(pref('short')&&unrestricted)requestedKm=3;
  const picked=chosen.slice();
  let plannedStats=null,waypoints=[],extras=[];
  const signal=new AbortController();
@@ -352,6 +354,10 @@ async function buildOnYandex(surprise=false){
   if(buildId!==generation)return true;
   let b=rawFinish?await coordsFor(rawFinish,end.value.trim()):null;
   if(buildId!==generation)return true;
+  // Automatic mode does not reject a destination farther than the old 12 km cap.
+  if(unrestricted&&a&&b&&!loop&&Number.isFinite(distanceEngine.km(a,b))){
+   requestedKm=Math.max(2,Math.ceil(distanceEngine.km(a,b)*1.20));
+  }
   if(!b&&!rawFinish&&!loop&&a){
    b=distanceEngine.dest(a,Math.max(.6,Math.min(2.5,requestedKm*.29)),surprise?Math.random()*360:65);
    b={...b,name:tr('Финиш прогулки','Walking finish'),generated:true};
@@ -359,10 +365,12 @@ async function buildOnYandex(surprise=false){
   const knowPath=Boolean(a&&(loop||b));
   if(knowPath){
    const turn=surprise?Math.random()*360:(loop?65:90);
-   plannedStats=await distanceEngine.matchLength({
-    start:a,end:loop?a:b,targetKm:requestedKm,loop,rotate:turn,signal:signal.signal,
-    onProgress:(i,max)=>status('Подбираем маршрут '+requestedKm+' км · попытка '+i+'/'+max+'…','Matching '+requestedKm+' km walk · pass '+i+'/'+max+'…')
-   });
+   plannedStats=unrestricted&&requestedKm>35&&!loop
+    ?{points:[a,b],measuredKm:null,tooShort:false,uncapped:true}
+    :await distanceEngine.matchLength({
+      start:a,end:loop?a:b,targetKm:requestedKm,loop,rotate:turn,signal:signal.signal,
+      onProgress:(i,max)=>status('Подбираем маршрут '+requestedKm+' км · попытка '+i+'/'+max+'…','Matching '+requestedKm+' km walk · pass '+i+'/'+max+'…')
+     });
    if(buildId!==generation)return true;
    const midpoint=plannedStats.points.slice(1,-1);
    // Fill gaps in the local catalogue with actual named POIs from public map data.
@@ -456,9 +464,13 @@ async function buildOnYandex(surprise=false){
   const measured=plannedStats?.measuredKm;
   const kmInfo=document.createElement('p');kmInfo.className='route-distance-summary';
   const closeToGoal=Number.isFinite(measured)&&Math.abs(measured-requestedKm)<=Math.max(.5,requestedKm*.12);
-  kmInfo.textContent=Number.isFinite(measured)
-    ?tr('Цель '+requestedKm+' км · пешеходный расчёт '+measured.toFixed(1)+' км'+(closeToGoal?' ✓':' · возможна разница'),'Target '+requestedKm+' km · walking estimate '+measured.toFixed(1)+' km'+(closeToGoal?' ✓':' · may differ'))
-    :tr('Цель '+requestedKm+' км · промежуточные точки добавлены. Точную длину проверь в Яндексе.','Target '+requestedKm+' km · detour waypoints added. Confirm actual distance in Yandex.');
+  kmInfo.textContent=unrestricted
+    ?(Number.isFinite(measured)
+      ?tr('Без ограничения длины · по пешеходным дорожкам ≈ '+measured.toFixed(1)+' км','No distance limit · walking estimate ≈ '+measured.toFixed(1)+' km')
+      :tr('Без ограничения длины. Длину и время пешком уточни в Яндекс Картах.','No distance limit. Confirm walking distance and time in Yandex Maps.'))
+    :(Number.isFinite(measured)
+      ?tr('Цель '+requestedKm+' км · пешеходный расчёт '+measured.toFixed(1)+' км'+(closeToGoal?' ✓':' · возможна разница'),'Target '+requestedKm+' km · walking estimate '+measured.toFixed(1)+' km'+(closeToGoal?' ✓':' · may differ'))
+      :tr('Цель '+requestedKm+' км · промежуточные точки добавлены. Точную длину проверь в Яндексе.','Target '+requestedKm+' km · detour waypoints added. Confirm actual distance in Yandex.'));
   if(plannedStats?.tooShort)kmInfo.textContent=tr('Маршрут на '+requestedKm+' км не построен: старт и финиш слишком далеко друг от друга.','No '+requestedKm+' km route was built: the starting point and destination are too far apart.');
   panel.append(kmInfo);
   if(plannedStats?.tooShort){
@@ -515,11 +527,21 @@ async function buildOnYandex(surprise=false){
       link.target='_blank';link.rel='noopener noreferrer';
       link.textContent=tr('Фотографии и отзывы в Яндексе ↗','Photos and reviews in Yandex ↗');
       media.append(link);body.append(media);
-      if(!p.generated && window.CityRoutePhotos?.renderInline){
+      if(window.CityRoutePhotos?.renderInline && (!p.generated||p.nearbyReference)){
+        if(p.generated){const note=document.createElement('small');note.textContent=tr('Фото ориентира поблизости, не этой точки','Photo of a nearby landmark, not this waypoint');media.append(note)}
         window.CityRoutePhotos.renderInline(pictured,media);
       }
     }
 
+    if(!p?.generated&&typeof p==='object'){
+      const facts=document.createElement('div');facts.className='cityroute-stop-facts';
+      const hours=document.createElement('small');
+      hours.textContent=p.tags?.opening_hours?tr('Часы работы (из каталога): ','Hours (catalogue): ')+p.tags.opening_hours:tr('Часы работы: уточни в Яндексе','Opening hours: check Yandex');
+      facts.append(hours);
+      const rating=document.createElement('small');
+      rating.textContent=p.rating?.value&&p.rating?.source?tr('Рейтинг: ','Rating: ')+p.rating.value:tr('Рейтинг: смотри в Яндексе','Rating: check Yandex');
+      facts.append(rating);body.append(facts);
+    }
     const prev=waypoints[i-1],leg=document.createElement('div');leg.className='cityroute-step-leg';
     const url=new URL('https://yandex.ru/maps/');
     url.search=new URLSearchParams({rtext:pointText(prev)+'~'+pointText(p),rtt:'pd'}).toString();
@@ -527,7 +549,12 @@ async function buildOnYandex(surprise=false){
     a.textContent=tr('Пеший переход ↗','Walking directions ↗');leg.append(a);
     const c1=pointCoords(prev),c2=pointCoords(p);
     if(c1&&c2){const d=distanceEngine.km({lat:c1[0],lng:c1[1]},{lat:c2[0],lng:c2[1]});
-     if(Number.isFinite(d)){const note=document.createElement('span');note.textContent=tr('≈'+d.toFixed(1)+' км по прямой','≈'+d.toFixed(1)+' km straight-line');leg.append(note)}
+     if(Number.isFinite(d)){
+      const note=document.createElement('span');
+      const min=Math.max(1,Math.round(d/4.5*60));
+      note.textContent=tr('≈ '+min+' мин пешком · от '+d.toFixed(1)+' км по прямой (оценка)','≈ '+min+' min walk · from '+d.toFixed(1)+' km straight-line (estimate)');
+      leg.append(note)
+     }
     }
     body.append(leg);
    }
@@ -564,7 +591,9 @@ async function buildOnYandex(surprise=false){
    a.textContent=tr('На транспорте ↗','Public transport ↗');box.append(a);
   }
   if(moscow){drawPlaces(backupPlaces());$('nearbyDisclosure').open=false;}
-  $('routeDetail').textContent=Number.isFinite(measured)?tr('Пешком ≈ '+measured.toFixed(1)+' км · цель '+requestedKm,'Walking ≈ '+measured.toFixed(1)+' km · target '+requestedKm):tr('Цель '+requestedKm+' км · проверить в Яндексе','Target '+requestedKm+' km · check Yandex');
+  $('routeDetail').textContent=unrestricted
+   ?(Number.isFinite(measured)?tr('Пешком ≈ '+measured.toFixed(1)+' км · без лимита','Walking ≈ '+measured.toFixed(1)+' km · unlimited'):tr('Без ограничения · проверить в Яндексе','Unlimited · check Yandex'))
+   :(Number.isFinite(measured)?tr('Пешком ≈ '+measured.toFixed(1)+' км · цель '+requestedKm,'Walking ≈ '+measured.toFixed(1)+' km · target '+requestedKm):tr('Цель '+requestedKm+' км · проверить в Яндексе','Target '+requestedKm+' km · check Yandex'));
   $('rerollRoute').hidden=false;
   if(plannedStats?.tooShort)status('Маршрут на '+requestedKm+' км не построен: финиш слишком далеко. Выбери другой финиш или круговой маршрут.','No '+requestedKm+' km route built: destination is too far. Choose another destination or a round trip.',true);
   else status('Маршрут готов: остановки в списке, путь в Яндекс Картах.','Route ready: stops are listed and the map is in Yandex.');

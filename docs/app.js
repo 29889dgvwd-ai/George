@@ -35,7 +35,19 @@ function updateYandex(){
  const link=new URL('https://yandex.ru/maps/');link.search=params.toString();
  $('yandexNav').href=link.href;
  const frame=new URL('https://yandex.ru/map-widget/v1/');frame.search=params.toString();
- clearTimeout(updateYandex.reload);updateYandex.reload=setTimeout(()=>{if($('yandexWidget').src!==frame.href)$('yandexWidget').src=frame.href;},420);
+ clearTimeout(updateYandex.reload);
+ // Avoid reloading the heavy iframe when only parameter order has changed.
+ // While typing, wait until the input settles; built routes and GPS respond promptly.
+ const precise=Boolean(currentRoutePath.length||yandexFallbackStops?.length||hasCoords);
+ updateYandex.reload=setTimeout(()=>{
+  const widget=$('yandexWidget');
+  try{
+   const existing=new URL(widget.src).searchParams;
+   const target=frame.searchParams;
+   if([...existing].length===[...target].length&&[...target].every(([k,v])=>existing.get(k)===v))return;
+  }catch{}
+  widget.src=frame.href;
+ },precise?160:950);
 }
 // Yandex iframe: clicking/dragging a point is not exposed to this site without Yandex JS API key.
 // Start and destination are edited through text inputs or the explicit geolocation button.
@@ -77,7 +89,7 @@ for(const f of [city,start,end,$('gptNotes')]){let clean=f.value;f.addEventListe
 map={removeLayer(){}};
  // The visible Yandex map, place list and GPS no longer require Leaflet.
 for(const [field,i] of [[start,0],[end,1]])field.addEventListener('input',()=>{cancel();points[i]=null;resetRoute();if(i===0){lastLocated=null;$('locationStatus').textContent='';$('locationOnMap').hidden=true}field.removeAttribute('aria-invalid');status('Укажи начальную точку и при желании финиш.','Enter your starting point and optionally a destination.')});
-city.addEventListener('input',()=>{chosen=[];drawChosen();if(poiLayer)map.removeLayer(poiLayer);nearby=[];cancel();points=[null,null];lastLocated=null;resetRoute();cache.clear()});
+city.addEventListener('input',()=>{placesRequestId++;clearTimeout(placeSearchTimer);chosen=[];drawChosen();if(poiLayer)map.removeLayer(poiLayer);nearby=[];cancel();points=[null,null];lastLocated=null;resetRoute();cache.clear()});
 $('fitRoute').onclick=()=>window.open($('yandexNav').href,'_blank','noopener,noreferrer');
 $('expandMap').onclick=()=>{const expanded=$('mapSection').classList.toggle('expanded-map');$('expandMap').setAttribute('aria-pressed',String(expanded));$('expandMap').querySelector('.ru').textContent=expanded?'Свернуть':'Развернуть';$('expandMap').querySelector('.en').textContent=expanded?'Collapse':'Expand'};
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('mapSection').classList.contains('expanded-map'))$('expandMap').click()});
@@ -101,7 +113,7 @@ const placeCache=new Map();
 function cachedPlaces(key){const hit=placeCache.get(key);if(hit&&Date.now()-hit.time<1800000)return hit.places;try{const saved=JSON.parse(sessionStorage.getItem('cityroute-places-v2')||'null');if(saved?.key===key&&Date.now()-saved.time<1800000){placeCache.set(key,saved);return saved.places}}catch{}return null}
 function savePlaces(key,places){const entry={key,places,time:Date.now()};if(placeCache.size>=8)placeCache.delete(placeCache.keys().next().value);placeCache.set(key,entry);try{sessionStorage.setItem('cityroute-places-v2',JSON.stringify(entry))}catch{}}
 function beauty(p){const t=p.tags||{};let score=({water:1000,parks:900,sights:750,art:550,culture:350,food:80,books:70,malls:0})[p.type]||0;if(['playground','dog_park'].includes(t.leisure))score-=650;if(t.wikidata||t.wikipedia)score+=160;const mood=document.querySelector('[name="mood"]:checked')?.value;if((mood==='romantic'&&['water','parks'].includes(p.type))||(mood==='calm'&&p.type==='parks'))score+=300;return score}
-let lastScenicId=null,poiLayer=null,nearby=[],chosen=[];
+let lastScenicId=null,poiLayer=null,nearby=[],chosen=[],placesRequestId=0,placeSearchTimer=0;
 const meters=(a,b)=>L.latLng(a).distanceTo(b);
 function pathOf(data){return data.trip.legs.flatMap(l=>decode(l.shape))}
 function repeats(path){
@@ -237,9 +249,11 @@ $('findPlacesTop').onclick=()=>{
 $('placeQuery').oninput=()=>{
  const query=$('placeQuery').value.trim();
  $('openYandexSearch').href='https://yandex.ru/maps/?'+new URLSearchParams({text:(city.value.trim()||'Москва')+' '+query}).toString();
- drawPlaces(nearby.length?nearby:backupPlaces());
+ clearTimeout(placeSearchTimer);
+ placeSearchTimer=setTimeout(()=>drawPlaces(nearby.length?nearby:backupPlaces()),150);
 };
 $('nearbyPlaces').onclick=async()=>{
+ const requestId=++placesRequestId;
  // Always show local results first: search works offline and on paused free databases.
  $('nearbyDisclosure').open=true;
  const instant=backupPlaces();drawPlaces(instant);
@@ -253,13 +267,20 @@ $('nearbyPlaces').onclick=async()=>{
  if(!cloud?.listPlaces)return;
  try{
   const rows=await cloud.listPlaces();
+  if(requestId!==placesRequestId||!/^(москва|moscow)/i.test(city.value.trim()))return;
   const existing=new Set(rows.map(p=>p.id));
   const combined=[...rows.map(p=>{const detail=window.CityRoutePlaces?.items.find(x=>x.id===p.id);return detail?{...p,check:detail.check||null,tags:{...(p.tags||{}),...(detail.tags||{})}}:p}),...instant.filter(p=>!existing.has(p.id))];
   if(combined.length){
    drawPlaces(combined);
-   $('placesStatus').textContent=tr('PostgreSQL: '+rows.length+' мест. Выбирай остановки ниже.','PostgreSQL: '+rows.length+' places. Choose stops below.');
+   const source=cloud.catalogStatus?.();
+   $('placesStatus').textContent=source==='stale'
+    ?tr('Нет связи с базой: '+rows.length+' мест из сохранённого каталога.','Offline: '+rows.length+' cached places.')
+    :source==='cache'
+     ?tr('Кеш каталога: '+rows.length+' мест.','Cached catalogue: '+rows.length+' places.')
+     :tr('PostgreSQL: '+rows.length+' мест. Выбирай остановки ниже.','PostgreSQL: '+rows.length+' places. Choose stops below.');
   }
  }catch(e){
+  if(requestId!==placesRequestId)return;
   $('placesStatus').textContent=tr('Показаны '+instant.length+' мест из локального каталога. PostgreSQL временно недоступен.','Showing '+instant.length+' local places. PostgreSQL is temporarily unavailable.');
  }
 };

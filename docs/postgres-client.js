@@ -5,6 +5,9 @@
 const BASE='https://nueldyadzypealriurmu.supabase.co';
 const KEY="sb_publishable_r_x6pqCRxyiVw19YMSjWNA_wgCHCI9a";
 const STORE='cityroute-pg-auth-v1';
+const CATALOG_KEY='cityroute-public-catalog-v1';
+const CATALOG_TTL=30*60*1000, CATALOG_STALE=7*24*60*60*1000;
+let catalogCache=null,catalogPending=null,catalogOrigin='none';
 let session=null,refreshing=null;
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function errorText(resp,body){
@@ -104,13 +107,46 @@ async function checkConnection(){
  if(!Array.isArray(rows))throw Error('PostgreSQL returned an invalid response');
  return {online:true};
 }
-async function listPlaces(){
- const rows=await request('/rest/v1/cityroute_places?select=id,name,city,type,category,latitude,longitude,address,wikipedia&city=eq.'+encodeURIComponent('Москва')+'&order=name.asc&limit=250');
- return (Array.isArray(rows)?rows:[]).map(p=>({
-  id:p.id,name:p.name,type:p.type,category:p.category,lat:p.latitude,lng:p.longitude,
-  address:p.address||'',tags:p.wikipedia?{wikipedia:p.wikipedia}:{},source:'postgres'
- }))
+function loadCachedCatalog(){
+ if(catalogCache)return catalogCache;
+ try{
+  const entry=JSON.parse(localStorage.getItem(CATALOG_KEY)||'null');
+  if(entry&&Number.isFinite(entry.time)&&Date.now()-entry.time<CATALOG_STALE&&Array.isArray(entry.items)&&entry.items.length<=1000){
+   catalogCache=entry;return entry;
+  }
+ }catch{}
+ return null;
 }
+function storeCatalog(items){
+ const entry={items,time:Date.now()};
+ catalogCache=entry;
+ try{localStorage.setItem(CATALOG_KEY,JSON.stringify(entry))}catch{}
+}
+async function listPlaces({refresh=false}={}){
+ const cached=loadCachedCatalog();
+ if(!refresh&&cached&&Date.now()-cached.time<CATALOG_TTL){
+  catalogOrigin='cache';return cached.items;
+ }
+ if(catalogPending)return catalogPending;
+ catalogPending=(async()=>{
+  try{
+   const rows=await request('/rest/v1/cityroute_places?select=id,name,city,type,category,latitude,longitude,address,wikipedia&city=eq.'+encodeURIComponent('Москва')+'&order=name.asc&limit=250');
+   if(!Array.isArray(rows))throw Error('Не удалось прочитать список мест из PostgreSQL.');
+   const items=rows.map(p=>({
+    id:p.id,name:p.name,type:p.type,category:p.category,lat:p.latitude,lng:p.longitude,
+    address:p.address||'',tags:p.wikipedia?{wikipedia:p.wikipedia}:{},source:'postgres'
+   })).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lng));
+   storeCatalog(items);catalogOrigin='live';return items;
+  }catch(error){
+   if(cached&&Date.now()-cached.time<CATALOG_STALE){
+    catalogOrigin='stale';return cached.items;
+   }
+   throw error;
+  }finally{catalogPending=null}
+ })();
+ return catalogPending;
+}
+
 async function listFavorites(){
  const rows=await request('/rest/v1/favorites?select=id,place_id,place_name,category,latitude,longitude,created_at&order=created_at.desc&limit=200',{auth:true});
  return Array.isArray(rows)?rows:[]
@@ -141,7 +177,7 @@ async function saveSettings(value){
   preferences:value.preferences&&typeof value.preferences==='object'?value.preferences:{}};
  return request('/rest/v1/cityroute_settings?on_conflict=owner_id',{method:'POST',auth:true,body:[body],prefer:'resolution=merge-duplicates,return=minimal'})
 }
-window.CityRouteCloud={BASE,checkConnection,current,signIn,signUp,signOut,saveRoute,listRoutes,removeRoute,
+window.CityRouteCloud={BASE,checkConnection,catalogStatus:()=>catalogOrigin,current,signIn,signUp,signOut,saveRoute,listRoutes,removeRoute,
  listPlaces,listFavorites,saveFavorite,readSettings,saveSettings,
  isSignedIn:()=>Boolean(session?.access_token),getUser:()=>session?.user||null};
 void current();

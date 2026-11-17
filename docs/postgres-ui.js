@@ -107,16 +107,28 @@ $('pgSaveSettings').addEventListener('click',()=>wrap(async()=>{
  message('Тема, язык и предпочтения сохранены в PostgreSQL.','Theme, language and preferences saved to PostgreSQL.')
 }));
 window.CityRouteCloudUI={refresh:()=>fetchSaved().catch(()=>{})};
-void (async()=>{
- try{
-  // Only report a verified connection after the real database answers.
-  await cloud.checkConnection();
-  const signed=await updateUser();
-  if(signed)await fetchSaved();
-  else message('✓ PostgreSQL проверен: каталог Москвы доступен. Вход необязателен.','✓ PostgreSQL verified: Moscow catalogue online. Signing in is optional.');
- }catch(e){
-  await updateUser().catch(()=>{});
-  message('Проверка PostgreSQL не прошла: '+(e?.message||'нет ответа')+'. Доступен локальный каталог.','PostgreSQL check failed: '+(e?.message||'no response')+'. Local catalogue remains available.',true);
- }
-})();
+// Defer connectivity checks until the cloud panel is approached; route planning stays instant.
+let cloudUiInitialized=false;
+function initializeCloudUi(){
+ if(cloudUiInitialized)return;
+ cloudUiInitialized=true;
+ void (async()=>{
+  try{
+   await cloud.checkConnection();
+   const signed=await updateUser();
+   if(signed)await fetchSaved();
+   else message('✓ PostgreSQL проверен: каталог Москвы доступен. Вход необязателен.','✓ PostgreSQL verified: Moscow catalogue online. Signing in is optional.');
+  }catch(e){
+   await updateUser().catch(()=>{});
+   message('Проверка PostgreSQL не прошла: '+(e?.message||'нет ответа')+'. Доступен локальный каталог.','PostgreSQL check failed: '+(e?.message||'no response')+'. Local catalogue remains available.',true);
+  }
+ })();
+}
+message('Облачная проверка запустится при открытии этого раздела.','Cloud status will be checked when you open this section.');
+if(typeof IntersectionObserver==='function'){
+ const observer=new IntersectionObserver(entries=>{
+  if(entries.some(entry=>entry.isIntersecting)){observer.disconnect();initializeCloudUi()}
+ },{rootMargin:'240px'});
+ observer.observe($('postgresPanel'));
+}else setTimeout(initializeCloudUi,500);
 })();

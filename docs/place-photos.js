@@ -2,8 +2,8 @@
    Uses published Wikimedia/Wikidata images + local verified photo metadata.
    No Yandex scraping, random stock imagery, or unrelated photos. */
 (()=>{'use strict';
-const cache=new Map(),sourceByUrl=new Map();
-const TAG='cityroute-commons-images-v5:',TTL=5*24*3600*1000;
+const cache=new Map(),pendingPhotos=new Map(),sourceByUrl=new Map();
+const TAG='cityroute-commons-images-v6:',TTL=5*24*3600*1000,EMPTY_TTL=60*60*1000;
 // Exact, verified Wikimedia Commons categories for identified Moscow venues.
 const verifiedCategories={
  'Кафе «Пушкинъ»':'Category:Café Pouchkine',
@@ -79,37 +79,53 @@ async function wikipediaImages(wikipedia){
  return files;
 }
 function store(key,urls){
- cache.set(key,{urls,time:Date.now()});
- if(!urls.length)return;
- try{sessionStorage.setItem(TAG+key,JSON.stringify({urls,time:Date.now()}))}catch{}
+ const entry={urls,time:Date.now(),credits:urls.map(url=>[url,sourceByUrl.get(url)||null])};
+ cache.set(key,entry);
+ try{localStorage.setItem(TAG+key,JSON.stringify(entry))}catch{}
 }
 function fromStore(key){
- if(cache.has(key))return cache.get(key).urls;
- try{
-  const data=JSON.parse(sessionStorage.getItem(TAG+key)||'null');
-  if(data&&Date.now()-data.time<TTL&&Array.isArray(data.urls)){cache.set(key,data);return data.urls}
- }catch{}
+ let data=cache.get(key);
+ if(!data)try{data=JSON.parse(localStorage.getItem(TAG+key)||'null')}catch{}
+ const ttl=data?.urls?.length?TTL:EMPTY_TTL;
+ if(data&&Number.isFinite(data.time)&&Date.now()-data.time<ttl&&Array.isArray(data.urls)){
+  cache.set(key,data);
+  for(const pair of data.credits||[]){
+   if(Array.isArray(pair)&&safeUrl(pair[0])&&pair[1]?.source)sourceByUrl.set(pair[0],{source:safeUrl(pair[1].source),credit:String(pair[1].credit||'Wikimedia Commons').slice(0,120)});
+  }
+  return data.urls.slice();
+ }
+ cache.delete(key);
  return null;
 }
 async function photos(p){
  const key=String(p.id||p.name).slice(0,130);
  const saved=fromStore(key);if(saved)return saved;
- const tags=p.tags||{},found=[];
- if(tags.image){
-  for(const raw of String(tags.image).split(';')){
-   const url=raw.startsWith('File:')?imageFile(raw):safeUrl(raw);
-   if(url)found.push(record(url,raw.startsWith('File:')?sourceFile(raw):url));
+ if(pendingPhotos.has(key))return pendingPhotos.get(key);
+ const pending=(async()=>{
+  const tags=p.tags||{},found=[];
+  if(tags.image){
+   for(const raw of String(tags.image).split(';')){
+    const url=raw.startsWith('File:')?imageFile(raw):safeUrl(raw);
+    if(url)found.push(record(url,raw.startsWith('File:')?sourceFile(raw):url));
+   }
   }
- }
- if(tags.wikimedia_commons?.startsWith('File:'))found.push(record(imageFile(tags.wikimedia_commons),sourceFile(tags.wikimedia_commons)));
- const source=tags.wikimedia_commons||verifiedCategories[p.name];
- if(source?.startsWith('Category:'))try{found.push(...await categoryImages(source))}catch{}
- if(found.length<5&&tags.wikidata)try{found.push(...await wikidataImages(tags.wikidata))}catch{}
- if(found.length<5&&tags.wikipedia)try{found.push(...await wikipediaImages(tags.wikipedia))}catch{}
- const result=[...new Set(found)].filter(Boolean).slice(0,7);
- store(key,result);
- return result;
+  if(tags.wikimedia_commons?.startsWith('File:'))found.push(record(imageFile(tags.wikimedia_commons),sourceFile(tags.wikimedia_commons)));
+  const source=tags.wikimedia_commons||verifiedCategories[p.name];
+  if(source?.startsWith('Category:'))try{found.push(...await categoryImages(source))}catch{}
+  if(found.length<5&&tags.wikidata)try{found.push(...await wikidataImages(tags.wikidata))}catch{}
+  if(found.length<5&&tags.wikipedia)try{found.push(...await wikipediaImages(tags.wikipedia))}catch{}
+  const result=[...new Set(found)].filter(Boolean).slice(0,7);
+  store(key,result);
+  return result;
+ })().finally(()=>pendingPhotos.delete(key));
+ pendingPhotos.set(key,pending);
+ return pending;
 }
+const thumbnailUrl=url=>{
+ if(/upload\.wikimedia\.org\/.*\/thumb\//.test(url))return url.replace(/\/\d+px-([^/]+)$/, '/180px-$1');
+ return url.replace(/([?&])width=\d+/,'$1width=180');
+};
+
 const locationUrl=p=>'https://yandex.ru/maps/?'+new URLSearchParams({ll:p.lng+','+p.lat,z:'17',text:p.name}).toString();
 const node=(tag,cls,content)=>{const el=document.createElement(tag);if(cls)el.className=cls;if(content!==undefined)el.textContent=content;return el};
 function render(places,root,{tr,focus}){
@@ -141,7 +157,7 @@ function render(places,root,{tr,focus}){
    if(!card.isConnected)return;
    if(!urls.length){caption.textContent=tr('Нет подтверждённого фото. Открой галерею в Яндексе.','No verified photos. Open this location in Yandex.');return}
    let current=0;
-   const photo=node('img','place-photo-image');photo.alt=p.name;photo.loading='lazy';photo.referrerPolicy='no-referrer';
+   const photo=node('img','place-photo-image');photo.alt=p.name;photo.loading='lazy';photo.decoding='async';photo.referrerPolicy='no-referrer';
    const credits=node('a','place-photo-license',tr('Источник фотографии ↗','Photo source ↗'));
    credits.target='_blank';credits.rel='noopener noreferrer';
    media.append(photo,credits);
@@ -167,7 +183,7 @@ function render(places,root,{tr,focus}){
     for(const [j,url] of urls.entries()){
      const btn=node('button','place-photo-thumb');btn.type='button';
      btn.title=tr('Фотография ','Photo ')+(j+1);btn.setAttribute('aria-label',btn.title);
-     const thumb=node('img');thumb.src=url;thumb.alt='';thumb.loading='lazy';btn.append(thumb);
+     const thumb=node('img');thumb.src=thumbnailUrl(url);thumb.alt='';thumb.loading='lazy';thumb.decoding='async';thumb.onerror=()=>{if(thumb.src!==url){thumb.onerror=null;thumb.src=url}};btn.append(thumb);
      btn.onclick=()=>put(j);row.append(btn);
     }
     media.append(row);row.querySelector('button')?.classList.add('active');

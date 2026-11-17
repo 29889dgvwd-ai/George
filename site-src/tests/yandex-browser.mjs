@@ -35,10 +35,11 @@ try{
  await page.addStyleTag({content:'html{scroll-behavior:auto!important}'});
  check(await page.locator('#yandexWidget').isVisible(),'Yandex is visible on iPhone-sized browser');
  check(await page.locator('#mapGPS').isVisible(),'Location control is visible beside map');
+ check(await page.locator('.cityroute-map-rescue').count()===0,'No schematic overlays the embedded map');
  check(await page.locator('#toggleMap').count()===0,'No unwanted OSM toggle');
  check(await page.locator('[data-pick]').count()===0,'No fake map click editor');
  await page.locator('#mapGPS').click();
- await page.waitForFunction(()=>document.getElementById('startPoint')?.value==='55.735000,37.580000',{timeout:7000});
+ await page.waitForFunction(()=>document.getElementById('startPoint')?.value==='Моё местоположение',{timeout:7000});
  check((await page.locator('#locationStatus').innerText()).includes('GPS'),'GPS success message');
  await page.waitForFunction(()=>new URL(document.getElementById('yandexWidget').src).searchParams.get('ll')==='37.580000,55.735000',{timeout:3500});
  const gpsFrame=new URL(await page.locator('#yandexWidget').getAttribute('src'));
@@ -51,6 +52,7 @@ try{
  check(await page.locator('.place-list-card').count()>=12,'Nearby places render as photo-ready cards');
  check(await page.locator('.place-list-card .place-list-actions a').count()>=12,'Every place has its own Yandex photos/reviews link');
  await page.locator('#placeQuery').fill('Парк');
+ await page.waitForFunction(n=>document.querySelectorAll('#placesList > div').length<n,{timeout:2500},count);
  const filtered=await page.locator('#placesList > div').count();
  check(filtered>=1&&filtered<count,'Place search filters without server');
  await page.locator('#placeQuery').fill('');
@@ -74,13 +76,13 @@ try{
  check(link.searchParams.get('rtt')==='pd','Pedestrian route');
  check(link.searchParams.get('rtext')?.includes('55.735'),'GPS coordinates included in Yandex walking route');
  check(await page.locator('.cityroute-quick-stops li').count()>=2,'Stops appear in itinerary');
- check(await page.locator('.cityroute-step-plan').count()===1,'Walking itinerary has a connected visible step-by-step scheme');
+ check(await page.locator('.cityroute-step-plan').count()===1,'Walking itinerary shows actual stops');
+ check((await page.locator('.cityroute-step-plan').innerText()).includes('Моё местоположение'),'GPS coordinates are not shown as the stop name');
+ check(await page.locator('.cityroute-step-media a').count()>=1,'Intermediate places have photo links');
  check(await page.locator('.cityroute-step-leg a').count()>=1,'Each walking leg has real navigation links');
- check(await page.evaluate(()=>!!window.CityRouteMapRescue),'Map fallback is initialized');
- await page.evaluate(()=>window.CityRouteMapRescue.showDiagram());
- check(await page.locator('.cityroute-map-rescue').isVisible(),'Fallback diagram is usable when Yandex iframe is empty');
- check(await page.locator('.cityroute-map-rescue-svg').isVisible(),'Fallback has visible route geometry');
- await page.evaluate(()=>window.CityRouteMapRescue.showMap());
+ check(await page.locator('.cityroute-map-rescue').count()===0,'The unwanted schematic is removed');
+ check(await page.locator('#yandexWidget').isVisible(),'Yandex iframe stays visible');
+ check(await page.locator('#scenicResult').count()===0,'No duplicate end-of-page photo gallery');
  await page.locator('#distance').evaluate(el=>{el.value='12';el.dispatchEvent(new Event('change',{bubbles:true}));});
  await page.locator('#buildReal').click();
  await page.locator('.route-distance-summary').waitFor({state:'visible',timeout:7000});
@@ -96,7 +98,7 @@ try{
  await page.locator('.saved-route .saved-actions button').first().click();
  await page.waitForURL(/index\.html/);
  await page.locator('.cityroute-map-cta').waitFor({state:'visible'});
- check(await page.locator('#startPoint').inputValue()==='55.735000,37.580000','Saved GPS start restored');
+ check(await page.locator('#startPoint').inputValue()==='Моё местоположение','Saved GPS start restored with readable label');
  await page.locator('label:has([name=routeMode][value=loop])').click({force:true});
  await page.locator('#buildReal').click();
  await page.waitForFunction(()=>{const q=new URL(document.getElementById('yandexNav').href);return (q.searchParams.get('rtext')||'').split('~').length>=3;},{timeout:9000});
@@ -132,7 +134,7 @@ try{
  const planned=new URL(await page.locator('#yandexNav').getAttribute('href'));
  const pts=planned.searchParams.get('rtext').split('~');
  check(pts[0]===pts.at(-1),'Metro Yasenevo loop ends at the original start');
- check(await page.locator('.cityroute-map-rescue-svg').isVisible(),'iPhone always has route diagram even when third-party map is unavailable');
+ check(await page.locator('#yandexWidget').isVisible(),'Only the real map is displayed');
  check(await page.locator('.place-list-price').count()>=1,'Nearby food venues show sourced average checks or honest missing-data state');
  const nearFood=await page.locator('.place-list-card').filter({hasText:'«Оазис»'}).count();
  check(nearFood>=1,'Near-Yasenevo cafe included in the searchable catalogue');

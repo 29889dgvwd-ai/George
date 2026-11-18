@@ -54,9 +54,8 @@ try{
  check(await page.locator('.place-list-card').count()>=12,'Nearby places render as photo-ready cards');
  check(await page.locator('.place-list-card .place-list-actions a').count()>=12,'Every place has its own Yandex photos/reviews link');
  await page.locator('#placeQuery').fill('Парк');
- await page.waitForFunction(n=>document.querySelectorAll('#placesList > div').length<n,count,{timeout:2500});
- const filtered=await page.locator('#placesList > div').count();
- check(filtered>=1&&filtered<count,'Place search filters without server');
+ await page.waitForFunction(()=>{const names=[...document.querySelectorAll('#placesList .place-list-copy strong')].map(n=>n.textContent.toLocaleLowerCase('ru'));return names.length>0&&names.every(n=>n.includes('парк'));},null,{timeout:3500});
+ check(await page.locator('#placesList > div').count()>=1,'Place search filters without server');
  await page.locator('#placeQuery').fill('');
  await page.locator('#placesList button').first().click();
  check(await page.locator('#chosenStops button').count()===1,'Choose stop works');

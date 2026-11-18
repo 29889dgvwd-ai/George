@@ -15,16 +15,10 @@ assert.equal(A.hits([[55.001,36.99],[55.001,37.01]],area.zones).length,1);
 assert.equal(calls,1);
 context.fetch=async()=>{throw Error('offline')};
 await assert.rejects(()=>A.load([{lat:56,lng:38}],3,{malls:true},new AbortController().signal),/Не удалось проверить/);
-// Exercise the actual routing wrapper: reroute and validate, never return a violating path.
-const app=fs.readFileSync('dist/app.js','utf8');const body=app.slice(app.indexOf('  async function route(waypoints){'),app.indexOf('\n  let data;',app.indexOf('  async function route(waypoints){')));
-const routeContext={AbortSignal,RouteAvoidance:A,avoidance:{bounds:{s:-10,n:10,w:-10,e:10},zones:[r]},abort:new AbortController(),kind:'all',avoidanceLoadNote:'',pathOf:x=>x.path,fetch:null};vm.createContext(routeContext);vm.runInContext(body+'\nthis.route=route;',routeContext);
-const violating={trip:{legs:[{}]},path:[[.5,-2],[.5,2]]},clear={trip:{legs:[{}]},path:[[2,-2],[2,2]]};let payloads=[];
-routeContext.fetch=async(url,options)=>{payloads.push(JSON.parse(options.body));return {ok:true,json:async()=>payloads.length===1?violating:clear}};
-assert.equal((await routeContext.route([{lat:2,lng:-2},{lat:2,lng:2}])).path[0][0],2);
-assert.equal(payloads[1].exclude_polygons.length,1);
-routeContext.fetch=async()=>({ok:true,json:async()=>violating});
-assert.match((await routeContext.route([{lat:2,lng:-2},{lat:2,lng:2}])).avoidanceNote,/Не удалось полностью обойти/);
-assert.match((await routeContext.route([{lat:.5,lng:.5},{lat:2,lng:2}])).avoidanceNote,/обычный пеший/);
-const off=await A.load([{lat:56,lng:38}],3,{},new AbortController().signal);assert.equal(off.zones.length,0);assert.equal(off.bounds,null);
-routeContext.avoidance=off;assert.equal((await routeContext.route([{lat:.5,lng:.5},{lat:2,lng:2}])).avoidanceNote,'');
-console.log('PASS: segment crossings, clearance, full mall area, data failure, exclusion retry, soft fallback, conflicting stops and unchecked preferences.');
+// Test avoidance geometries directly: the old network-routing wrapper no longer exists.
+assert.equal(A.hits([[2,-2],[2,2]],[r]).length,0,'safe route is not flagged');
+assert.equal(A.hits([[.5,-2],[.5,2]],[r]).length,1,'crossing is flagged');
+const off=await A.load([{lat:56,lng:38}],3,{},new AbortController().signal);
+assert.equal(off.zones.length,0);
+assert.equal(off.bounds,null);
+console.log('PASS: segment crossings, mall zones, failures and optional avoidance mode.');

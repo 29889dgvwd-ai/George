@@ -30,12 +30,13 @@ jobs:
           node --check site-src/public/map-resilience.js
           node --check site-src/public/distance-planner.js
           node --check site-src/public/itinerary.js
+          node --check site-src/public/ready-routes.js
           node --check site-src/public/static-walks.js
           node --check site-src/public/ai-offline.js
           node --check site-src/scripts/build-pages.mjs
           mkdir -p site-src/dist
           cp site-src/public/avoidance.js site-src/public/itinerary.js site-src/public/app.js site-src/dist/
-          (cd site-src && node --test tests/avoidance.mjs tests/itinerary.mjs tests/distance-planner.mjs)
+          (cd site-src && node --test tests/avoidance.mjs tests/itinerary.mjs tests/distance-planner.mjs tests/ready-routes.mjs)
       - name: Export static site to docs
         run: |
           node site-src/scripts/build-pages.mjs

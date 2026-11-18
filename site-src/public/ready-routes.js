@@ -15,7 +15,7 @@ const translations={
 'Парк Дружбы у Речного вокзала':'Friendship Park','Парк Северного речного вокзала':'Northern River Station Park','Северный речной вокзал':'Northern River Station','Парк «Покровское-Стрешнево»':'Pokrovskoye-Streshnevo Park','Усадьба «Покровское-Стрешнево»':'Pokrovskoye-Streshnevo Estate','Московский Кремль':'Moscow Kremlin'
 };
 const raw=[
-['heart',['Сердце Москвы: не спеша','Moscow highlights at your pace'],['Классика','City highlights'],['Сад, главные площади, Зарядье и недорогой обед.','Squares, gardens, Zaryadye and a casual lunch.'],['Манежная площадь','Александровский сад','Красная площадь','Собор Василия Блаженного','Парк «Зарядье»','Парящий мост в «Зарядье»','Никольская улица','«Теремок» на Никольской'],'Парк «Зарядье»',65,[500,1200]],
+['heart',['Сердце Москвы: не спеша','Moscow highlights at your pace'],['Классика','City highlights'],['Сад, главные площади, Зарядье и недорогой обед.','Squares, gardens, Zaryadye and a casual lunch.'],['Манежная площадь','Александровский сад','Красная площадь','Собор Василия Блаженного','Парк «Зарядье»','Парящий мост в «Зарядье»','Никольская улица','«Теремок» на Никольской'],'Парк «Зарядье»',45,[500,1200]],
 ['river',['От Музеона до Воробьёвых гор','Riverside grand walk'],['Длинная прогулка','Long walk'],['Набережные, мосты, Нескучный сад и вид с гор.','Embankments, bridges, gardens and a panoramic view.'],['Парк искусств «Музеон»','Крымская набережная','Крымский мост','Парк Горького','Пушкинская набережная','Нескучный сад','Фрунзенская набережная','Новодевичьи пруды','Воробьёвы горы — смотровая площадка'],'Парк Горького',120,[600,1600]],
 ['art',['Арт-маршрут по Замоскворечью','Art around Zamoskvorechye'],['Музеи','Culture'],['Третьяковка, ГЭС-2, современное искусство и красивые улицы.','Tretyakov, GES-2, contemporary art and lovely streets.'],['Государственная Третьяковская галерея','Болотная набережная','Дом на набережной','Дом культуры «ГЭС-2»','Патриарший мост','Культурный квартал «Красный Октябрь»','Мультимедиа Арт Музей','Музей Москвы','Новая Третьяковка'],'Государственная Третьяковская галерея',140,[500,1500]],
 ['boulevards',['Бульвары, Арбат и кофе','Boulevards, Arbat and coffee'],['С едой','Food & stroll'],['Кафе, старые улочки, музеи и вечерний Арбат.','Cafés, old streets, museums and Arbat.'],['Сад «Эрмитаж»','Кафе «Пушкинъ»','Никитский бульвар','«Кофемания» на Большой Никитской, 13','Гоголевский бульвар','ГМИИ имени Пушкина','Храм Христа Спасителя','Арбат','«Кофемания» на Новом Арбате, 19'],'Кафе «Пушкинъ»',80,[600,1800]],
@@ -97,9 +97,10 @@ function makeCard(plan){
  media.append(pic,fallback,badge,arrowPrev,arrowNext,counter,credit,locationLink);
  const body=node('div','ready-route-body');
  const title=bilingual(node('h3'),plan.title),desc=bilingual(node('p'),plan.description);
- const duration=info.minutes>=240?Math.round(info.minutes/30)/2+'+' : Math.max(50,Math.round(info.minutes/15)*15)+'';
+ const durRu=info.minutes>=120?Math.floor(info.minutes/60)+' ч '+(info.minutes%60?info.minutes%60+' мин':''):info.minutes+' мин';
+ const durEn=info.minutes>=120?Math.floor(info.minutes/60)+' h '+(info.minutes%60?info.minutes%60+' min':''):info.minutes+' min';
  const meta=node('div','ready-route-metrics');
- const time=bilingual(node('span'),['◷ ≈ '+duration+' мин с остановками','◷ ≈ '+duration+' min incl. stops']);
+ const time=bilingual(node('span'),['◷ ≈ '+durRu+' с остановками','◷ ≈ '+durEn+' incl. stops']);
  const distance=bilingual(node('span'),['↗ ≈ '+info.approxKm.toFixed(1)+' км','↗ ≈ '+info.approxKm.toFixed(1)+' km']);
  meta.append(time,distance);
  const foodName=info.food[0]?.name||'';
@@ -110,9 +111,7 @@ function makeCard(plan){
  const verified=info.food.find(p=>p.check?.label&&p.check?.source);
  if(verified){
   const fact=node('a','ready-check-source');fact.href=verified.check.source;fact.target='_blank';fact.rel='noopener noreferrer';
-  fact.textContent=tr('Указанный чек '+verified.name+': '+verified.check.label+' ↗','Published bill '+(translations[verified.name]||verified.name)+': '+verified.check.label+' ↗');body.append();
-  spend.after?.(); // harmless on detached nodes; verified link inserted below
-  meta.dataset.verified='true';meta.__checkLink=fact;
+  fact.textContent=tr('Указанный чек '+verified.name+': '+verified.check.label+' ↗','Published bill '+(translations[verified.name]||verified.name)+': '+verified.check.label+' ↗');  meta.dataset.verified='true';meta.__checkLink=fact;
  }
  const details=node('details','ready-route-details'),summary=bilingual(node('summary'),['Все '+plan.points.length+' остановок','All '+plan.points.length+' stops']),stops=node('ol');
  for(const [i,p] of plan.points.entries()){

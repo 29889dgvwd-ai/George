@@ -246,7 +246,7 @@ function drawPlaces(places){
  
 }
 $('findPlacesTop').onclick=()=>{
- $('nearbyDisclosure').open=false;
+ $('nearbyDisclosure').open=true;
  $('nearbyPlaces').click();
  $('nearbyDisclosure').scrollIntoView({behavior:'smooth',block:'start'});
 };
@@ -259,7 +259,7 @@ $('placeQuery').oninput=()=>{
 $('nearbyPlaces').onclick=async()=>{
  const requestId=++placesRequestId;
  // Always show local results first: search works offline and on paused free databases.
- $('nearbyDisclosure').open=false;
+ $('nearbyDisclosure').open=true;
  const instant=backupPlaces();drawPlaces(instant);
  const isMoscow=/^(москва|moscow)/i.test(city.value.trim());
  if(!isMoscow){
@@ -305,7 +305,7 @@ function showTransport(data,places,loop){
 
 // Fast Yandex-only route builder: the embedded map, not an unresponsive
 // third-party routing server, determines the actual pedestrian path.
-async function buildOnYandex(surprise=false){
+async function buildOnYandex(surprise=false,readyRoute=null){
  const source=start.value.trim();
  if(!source){
   status('Введи адрес начала или нажми «Моё положение».','Enter a starting address or select My location.',true);
@@ -363,7 +363,11 @@ async function buildOnYandex(surprise=false){
    b={...b,name:tr('Финиш прогулки','Walking finish'),generated:true};
   }
   const knowPath=Boolean(a&&(loop||b));
-  if(knowPath){
+  if(readyRoute){
+   waypoints=readyRoute.points.slice();extras=waypoints.slice(1,-1);
+   plannedStats={points:waypoints,measuredKm:null,tooShort:false};
+   points[0]={...waypoints[0],label:source};points[1]={...waypoints.at(-1),label:end.value};
+  }else if(knowPath){
    const turn=surprise?Math.random()*360:(loop?65:90);
    plannedStats=unrestricted&&requestedKm>35&&!loop
     ?{points:[a,b],measuredKm:null,tooShort:false,uncapped:true}
@@ -571,7 +575,7 @@ async function buildOnYandex(surprise=false){
   save.onclick=()=>{
    try{
     const key='cityroute-saved-itineraries-v1',old=JSON.parse(localStorage.getItem(key)||'[]');
-    const entry={v:3,id:crypto.randomUUID?.()||String(Date.now()),city:city.value.trim()||'Москва',start:source,finish:end.value.trim(),loop,style,stops:extras,waypoints,distanceKm:measured||null,requestedKm};
+    const entry={v:3,id:crypto.randomUUID?.()||String(Date.now()),city:city.value.trim()||'Москва',start:source,finish:end.value.trim(),loop,style,stops:extras,waypoints,distanceKm:measured||null,requestedKm,readyRouteId:readyRoute?.id||null};
     localStorage.setItem(key,JSON.stringify([entry,...(Array.isArray(old)?old:[])].slice(0,30)));
     $('saveStatus').textContent=tr('✓ Сохранено в браузере.','✓ Saved on this device.');
     save.disabled=true;save.textContent=tr('Сохранено ✓','Saved ✓');renderQuickSaved();
@@ -615,6 +619,13 @@ function renderQuickSaved(){
   a.onclick=()=>openQuickSaved(route);box.append(a);
  }
 }
+document.addEventListener('cityroute:ready-route',event=>{
+ const route=window.CityRouteReady?.resolve(event.detail,window.CityRoutePlaces?.items||[]);if(!route)return;
+ city.value='Москва';start.value=route.points[0].name;end.value=route.points.at(-1).name;end.disabled=false;
+ document.querySelector('[name="routeMode"][value="oneway"]').checked=true;
+ $('distance').value='auto';$('routeStyle').value='all';chosen=route.points.slice(1,-1);drawChosen();points=[null,null];
+ buildOnYandex(false,route);
+});
 function openQuickSaved(r){
  if(!r||r.v!==3||!Array.isArray(r.waypoints))return;
  city.value=r.city||'Москва';start.value=r.start||'';end.value=r.finish||'';
@@ -622,7 +633,8 @@ function openQuickSaved(r){
  end.disabled=!!r.loop;chosen=Array.isArray(r.stops)?r.stops:[];drawChosen();
  points=[null,null];
  const first=r.waypoints[0];if(first&&typeof first==='object'&&Number.isFinite(first.lat)&&Number.isFinite(first.lng))points[0]={lat:first.lat,lng:first.lng,label:start.value};
- buildOnYandex(false);
+ if(r.readyRouteId)$('distance').value='auto';
+ buildOnYandex(false,window.CityRouteReady?.resolve(r.readyRouteId,window.CityRoutePlaces?.items||[]));
 }
 // Build through the current Yandex-backed planner; the old routing branch below
 // was unreachable after an unconditional return and only increased JS parse cost.

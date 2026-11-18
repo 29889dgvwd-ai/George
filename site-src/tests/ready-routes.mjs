@@ -11,3 +11,25 @@ test('Each ready walk resolves to distinct real catalogue points in its publishe
 test('Incomplete catalogue or unknown route never produces a partial walk',()=>{
  assert.equal(ready.resolve('missing',places.items),null);assert.equal(ready.resolve(ready.routes[0].id,[]),null);
 });
+
+test('Curated walks cover multiple durations and every food claim refers to the catalogue',()=>{
+ assert.ok(ready.routes.length>=12);
+ let overFour=0,underTwo=0,withFood=0;
+ for(const route of ready.routes){
+  const plan=ready.resolve(route.id,places.items);
+  assert.ok(plan,route.id);
+  assert.equal(route.englishNames.length,route.names.length);
+  assert.ok(route.names.length>=5);
+  const info=ready.estimate(plan);
+  assert.ok(Number.isFinite(info.approxKm)&&info.approxKm>0);
+  assert.ok(info.minutes>=50);
+  if(info.minutes>=240)overFour++;
+  if(info.minutes<120)underTwo++;
+  if(info.food.length)withFood++;
+  assert.ok(route.foodBudget[0]>0&&route.foodBudget[1]>route.foodBudget[0]);
+  assert.ok(plan.points.some(p=>p.name===route.cover));
+ }
+ assert.ok(overFour>=1,'at least one walk lasting 4+ hours');
+ assert.ok(underTwo>=1,'at least one walk under 2 hours');
+ assert.ok(withFood>=5,'at least five routes with catalogue food stops');
+});

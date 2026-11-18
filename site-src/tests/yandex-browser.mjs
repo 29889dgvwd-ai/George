@@ -124,7 +124,7 @@ try{
  await page.locator('#distance').evaluate(el=>{el.value='12';el.dispatchEvent(new Event('change',{bubbles:true}));});
  await page.locator('#buildReal').click();
  await page.locator('#suggestLoopRoute').waitFor({state:'visible',timeout:6000});
- check((await page.locator('.route-distance-alert').innerText()).includes('друг от друга'),'Too-distant endpoints are reported, not treated as a fake 12 km walk');
+ check((await page.locator('.route-distance-alert').innerText()).includes('по прямой'),'Too-distant endpoints show actual straight-line minimum, not a fake 12 km walk');
  check(await page.locator('.cityroute-step-plan li').count()===2,'Impossible 12 km point-to-point walk is clearly distinguished from a real planned route');
  await page.locator('#suggestLoopRoute').click();
  await page.waitForFunction(()=>{

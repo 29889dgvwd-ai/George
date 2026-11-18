@@ -34,13 +34,15 @@ try{
  await page.goto(base+'/',{waitUntil:'domcontentloaded',timeout:20000});
  await page.addStyleTag({content:'html{scroll-behavior:auto!important}'});
  check(await page.locator('#yandexWidget').isVisible(),'Yandex is visible on iPhone-sized browser');
+  check(await page.locator('.ready-route').count()>=6,'At least six ready walk cards render immediately');
+  check(await page.locator('.ready-route-spend').count()>=6,'Ready walks show food budget information');
  check(await page.locator('#mapGPS').isVisible(),'Location control is visible beside map');
  check(await page.locator('.cityroute-map-rescue').count()===0,'No schematic overlays the embedded map');
  check(await page.locator('#toggleMap').count()===0,'No unwanted OSM toggle');
  check(await page.locator('[data-pick]').count()===0,'No fake map click editor');
  await page.locator('#mapGPS').click();
  await page.waitForFunction(()=>document.getElementById('startPoint')?.value==='Моё местоположение',{timeout:7000});
- check((await page.locator('#locationStatus').innerText()).includes('GPS'),'GPS success message');
+ check((await page.locator('#locationStatus').innerText()).includes('Местоположение определено'),'GPS success message matches UI wording');
  await page.waitForFunction(()=>new URL(document.getElementById('yandexWidget').src).searchParams.get('ll')==='37.580000,55.735000',{timeout:3500});
  const gpsFrame=new URL(await page.locator('#yandexWidget').getAttribute('src'));
  check(gpsFrame.searchParams.get('ll')==='37.580000,55.735000','Yandex map centers exactly on GPS');

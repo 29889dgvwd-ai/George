@@ -81,6 +81,7 @@ const bilingual=(el,values)=>{
 const node=(tag,cls)=>{const el=document.createElement(tag);if(cls)el.className=cls;return el;};
 const plans=routes.slice().sort((a,b)=>{const order=['zaryadye-short','centre-hour','vdnh-two','boulevards','art-four','river'];return (order.includes(a.id)?order.indexOf(a.id):99)-(order.includes(b.id)?order.indexOf(b.id):99)}).map(route=>resolve(route.id,root.CityRoutePlaces?.items||[])).filter(Boolean);
 const state={filter:'all',more:false};
+const home=host.parentElement;
 const filters=node('div','ready-filters');filters.setAttribute('role','group');filters.setAttribute('aria-label','Продолжительность / Duration');
 const options=[['all',['Все маршруты','All routes']],['quick',['40–60 минут','40–60 minutes']],['short',['1–2 часа','1–2 hours']],['medium',['2–3 часа','2–3 hours']],['extended',['3–4 часа','3–4 hours']],['long',['Больше 4 часов','Over 4 hours']],['food',['С кафе','With cafés']]];
 const controls=new Map();
@@ -93,18 +94,22 @@ const hint=bilingual(node('p','ready-estimate-note'),[
  'Время включает прогулку и остановки. Километраж — приблизительная оценка по точкам, а не проложенный пеший путь. Стоимость еды — пример бюджета на человека, не подтверждённый средний чек.',
  'Times include stops. Distances are waypoint estimates, not measured walking routes. Food budget is an example per person, not a verified average bill.'
 ]);
-host.parentElement.insertBefore(filters,host);
-host.parentElement.insertBefore(hint,host);
-const more=bilingual(node('button','ready-more'),['Показать остальные прогулки ↓','Show more walks ↓']);more.type='button';
-more.onclick=()=>{state.more=!state.more;renderCards();};
-host.parentElement.insertBefore(more,host.nextSibling);
+const more=bilingual(node('button','ready-more'),['Все прогулки','All walks']);more.type='button';
+const dialog=node('dialog','walks-dialog');dialog.id='walksCatalogue';
+const bar=node('div','walks-dialog-bar'),title=bilingual(node('h2'),['Прогулки по Москве','Moscow walks']);title.id='walksCatalogueTitle';dialog.setAttribute('aria-labelledby',title.id);
+const close=bilingual(node('button','secondary'),['Закрыть','Close']);close.type='button';close.onclick=()=>dialog.close();
+bar.append(title,close);dialog.append(bar);document.body.append(dialog);
+home.querySelector('.ready-heading').append(more);
+more.onclick=()=>{state.more=true;dialog.append(filters,hint,host);dialog.showModal();document.body.classList.add('walks-dialog-open');renderCards();};
+dialog.addEventListener('close',()=>{state.more=false;state.filter='all';home.append(host);filters.remove();hint.remove();document.body.classList.remove('walks-dialog-open');renderCards();more.focus();});
+dialog.addEventListener('click',event=>{if(event.target===dialog){const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)dialog.close();}});
 const photos=root.CityRoutePhotos;
 const photoObserver=typeof IntersectionObserver==='function'?new IntersectionObserver(entries=>{
  for(const entry of entries)if(entry.isIntersecting){photoObserver.unobserve(entry.target);entry.target.__loadReadyPhoto?.();}
 },{rootMargin:'260px'}):null;
 function makeCard(plan){
  const info=estimate(plan),card=node('article','ready-route'),media=node('div','ready-route-media');
- const pic=node('img','ready-route-image');pic.alt=plan.cover;pic.loading='lazy';pic.decoding='async';pic.hidden=true;
+ const pic=node('img','ready-route-image');pic.alt=plan.cover;pic.loading='eager';pic.decoding='async';pic.hidden=true;
  const fallback=bilingual(node('span','ready-photo-fallback'),['МОСКВА · МАРШРУТ','MOSCOW · WALK']);
  const badge=bilingual(node('span','ready-route-tag'),plan.tag);
  const counter=node('span','ready-photo-count');counter.hidden=true;
@@ -150,16 +155,20 @@ function makeCard(plan){
  const cost=bilingual(node('small'),['План расходов: '+plan.foodBudget[0]+'–'+plan.foodBudget[1]+' ₽/чел. на еду. Билеты и транспорт отдельно.','Food allowance: ₽'+plan.foodBudget[0]+'–'+plan.foodBudget[1]+' per person. Tickets and transport extra.']);
  const actions=node('div','ready-route-actions'),open=bilingual(node('button','primary'),['Открыть прогулку →','Open walk →']);
  open.type='button';open.dataset.readyRoute=plan.id;
- open.onclick=()=>document.dispatchEvent(new CustomEvent('cityroute:ready-route',{detail:plan.id}));
+ open.onclick=()=>{if(dialog.open)dialog.close();document.dispatchEvent(new CustomEvent('cityroute:ready-route',{detail:plan.id}));};
  actions.append(open);
  const mapLink=bilingual(node('a','ready-food-link'),['Пеший маршрут в Яндексе','Walking route in Yandex']);
  mapLink.href='https://yandex.ru/maps/?'+new URLSearchParams({rtext:plan.points.map(p=>p.lat+','+p.lng).join('~'),rtt:'pd'});mapLink.target='_blank';mapLink.rel='noopener noreferrer';actions.append(mapLink);
  const lookup=node('a','ready-food-link');
  lookup.href='https://yandex.ru/maps/?'+new URLSearchParams({text:'кафе и рестораны рядом '+plan.names[Math.floor(plan.names.length/2)]+' Москва'}).toString();
  lookup.target='_blank';lookup.rel='noopener noreferrer';bilingual(lookup,['Где поесть рядом ↗','Find food nearby ↗']);actions.append(lookup);
- body.append(meta,title,desc,spend);
+ const extra=node('div','ready-extra');extra.append(desc,split,preview,details,cost);
+ const toggle=bilingual(node('button','ready-details-toggle'),['Подробнее','Details']);toggle.type='button';toggle.setAttribute('aria-expanded','false');
+ extra.id='walk-details-'+plan.id;toggle.setAttribute('aria-controls',extra.id);extra.hidden=true;
+ toggle.onclick=()=>{extra.hidden=!extra.hidden;toggle.setAttribute('aria-expanded',String(!extra.hidden));};
+ body.append(meta,title,spend,toggle);
  if(meta.__checkLink)body.append(meta.__checkLink);
- body.append(split,preview,details,cost,actions);card.append(media,body);
+ body.append(extra,actions);card.append(media,body);
  let urls=[],idx=0,loaded=false;
  function show(){
   if(!urls.length)return;
@@ -189,9 +198,7 @@ function renderCards(){
  const displayed=state.more?filtered:filtered.slice(0,6);
  host.replaceChildren(...displayed.map(p=>cards.get(p.id)));
  for(const card of host.children){if(photoObserver)photoObserver.observe(card);else card.__loadReadyPhoto?.();}
- more.hidden=filtered.length<=6;
- more.querySelector('.ru').textContent=state.more?'Свернуть маршруты ↑':'Показать ещё '+(filtered.length-6)+' прогулок ↓';
- more.querySelector('.en').textContent=state.more?'Show fewer walks ↑':'Show '+(filtered.length-6)+' more walks ↓';
+ more.querySelector('.ru').textContent='Все прогулки · '+plans.length;more.querySelector('.en').textContent='All walks · '+plans.length;
  for(const [key,button] of controls){const active=key===state.filter;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));}
  if(!displayed.length){const empty=bilingual(node('p','ready-empty'),['Пока нет прогулок такой длительности. Выбери другой фильтр.','No walks match this filter. Try another.']);host.append(empty);}
 }

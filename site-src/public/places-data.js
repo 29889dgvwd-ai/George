@@ -171,9 +171,14 @@ const metroAliases=[
  {name:'Метро «Ясенево»',lat:55.606306,lng:37.533406,aliases:['метро ясенево','станция метро ясенево','м ясенево','yasenevo metro','yasenevo subway'],source:'https://vmetro.moscow/station/yasenevo/'},
  {name:'Метро «Рязанский проспект»',lat:55.717546,lng:37.793593,aliases:['рязанский проспект','метро рязанский проспект','станция метро рязанский проспект','м рязанский проспект','ryazansky prospekt metro'],source:'https://s3.t2.ru/ds-site/bcc_media/content/dokumenty/goroda-i-koordinaty-m3530005.pdf'}
 ];
+// Published opening hours; exceptional closures still require checking the source.
+const hours={
+ 'Парк Горького':{value:'24/7',source:'https://www.park-gorkogo.ru/faq/',checked:'2026-11-19'},
+ 'Парк «Зарядье»':{value:'24/7',source:'https://yandex.by/maps/org/zaryadye/205689235916/',checked:'2026-11-19'}
+};
 const items=raw.map(([name,type,category,lat,lng,wiki,address],i)=>({
   id:'curated-msk-'+i,name,type,category,lat,lng,
-  address:address||name+', Москва',tags:wiki?{wikipedia:'ru:'+wiki}:{},
+  address:address||name+', Москва',tags:{...(wiki?{wikipedia:'ru:'+wiki}:{}),...(hours[name]?{opening_hours:hours[name].value}:{})},hoursSource:hours[name]?.source||null,
   source:'curated',check:checks[name]||null
 }));
 const norm=s=>String(s||'').toLocaleLowerCase('ru').replace(/ё/g,'е').replace(/[«»"']/g,'').replace(/[^\p{L}\p{N} ]/gu,' ').replace(/\s+/g,' ').trim();

@@ -535,7 +535,7 @@ async function buildOnYandex(surprise=false,readyRoute=null){
       link.href='https://yandex.ru/maps/?'+new URLSearchParams({ll:pictured.lng+','+pictured.lat,z:'17',text:pictured.name||''}).toString();
       link.target='_blank';link.rel='noopener noreferrer';
       link.textContent=tr('Фотографии и отзывы в Яндексе ↗','Photos and reviews in Yandex ↗');
-      media.append(link);body.append(media);
+      media.append(link);body.prepend(media);
       if(window.CityRoutePhotos?.renderInline && (!p.generated||p.nearbyReference)){
         if(p.generated){const note=document.createElement('small');note.textContent=tr('Фото ориентира поблизости, не этой точки','Photo of a nearby landmark, not this waypoint');media.append(note)}
         window.CityRoutePhotos.renderInline(pictured,media);
@@ -545,11 +545,11 @@ async function buildOnYandex(surprise=false,readyRoute=null){
     if(!p?.generated&&typeof p==='object'){
       const facts=document.createElement('div');facts.className='cityroute-stop-facts';
       const hours=document.createElement('small');
-      hours.textContent=p.tags?.opening_hours?tr('Часы работы (из каталога): ','Hours (catalogue): ')+p.tags.opening_hours:tr('Часы работы: уточни в Яндексе','Opening hours: check Yandex');
-      facts.append(hours);
+      hours.textContent=p.tags?.opening_hours?tr('Часы работы (из каталога): ','Hours (catalogue): ')+(p.tags.opening_hours==='24/7'?tr('круглосуточно','24 hours'):p.tags.opening_hours):tr('Часы работы: уточни в Яндексе','Opening hours: check Yandex');
+      facts.append(hours);if(p.hoursSource){const source=document.createElement('a');source.href=p.hoursSource;source.target='_blank';source.rel='noopener noreferrer';source.textContent=tr('Расписание и изменения','Hours and updates');facts.append(source);}
       const rating=document.createElement('small');
       rating.textContent=p.rating?.value&&p.rating?.source?tr('Рейтинг: ','Rating: ')+p.rating.value:tr('Рейтинг: смотри в Яндексе','Rating: check Yandex');
-      facts.append(rating);body.append(facts);
+      if(p.rating?.value&&p.rating?.source)facts.append(rating);body.append(facts);
     }
     const prev=waypoints[i-1],leg=document.createElement('div');leg.className='cityroute-step-leg';
     const url=new URL('https://yandex.ru/maps/');
@@ -560,8 +560,8 @@ async function buildOnYandex(surprise=false,readyRoute=null){
     if(c1&&c2){const d=distanceEngine.km({lat:c1[0],lng:c1[1]},{lat:c2[0],lng:c2[1]});
      if(Number.isFinite(d)){
       const note=document.createElement('span');
-      const min=Math.max(1,Math.round(d/4.5*60));
-      note.textContent=tr('≈ '+min+' мин пешком · от '+d.toFixed(1)+' км по прямой (оценка)','≈ '+min+' min walk · from '+d.toFixed(1)+' km straight-line (estimate)');
+      const min=Math.max(1,Math.round(d*1.25/4.2*60));
+      note.textContent=tr('До места ≈ '+min+' мин · оценка, точный путь в Яндексе','To this stop ≈ '+min+' min · estimate; confirm in Yandex');
       leg.append(note)
      }
     }

@@ -3,7 +3,7 @@
    No Yandex scraping, random stock imagery, or unrelated photos. */
 (()=>{'use strict';
 const cache=new Map(),pendingPhotos=new Map(),sourceByUrl=new Map();
-const TAG='cityroute-commons-images-v8:',TTL=5*24*3600*1000,EMPTY_TTL=60*60*1000;
+const TAG='cityroute-commons-images-v9:',TTL=5*24*3600*1000,EMPTY_TTL=60*60*1000;
 // Exact, verified Wikimedia Commons categories for identified Moscow venues.
 const verifiedCategories={
  'Кафе «Пушкинъ»':'Category:Café Pouchkine',
@@ -99,7 +99,12 @@ function fromStore(key){
 }
 async function photos(p){
  const known=window.CityRoutePlaces?.lookup(p.name||p.label);if(known&&(!Number.isFinite(p.lat)||window.CityRoutePlaces.haversine(known,p)<.15))p={...known,...p,tags:{...known.tags,...p.tags}};
- const key=String(p.id||p.name).slice(0,130);
+ // Resolve only this identified Moscow station, never a namesake in another city.
+ const label=String(p.name||p.label||'').toLowerCase().replace(/ё/g,'е').trim();
+ if(/^(?:метро\s+)?маяковская$/.test(label)&&Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&Math.abs(p.lat-55.769)<.005&&Math.abs(p.lng-37.596)<.005&&!p.tags?.wikipedia){
+  p={...p,tags:{...p.tags,wikipedia:'ru:Маяковская (станция метро, Москва)'}};
+ }
+ const key=JSON.stringify([p.id||'',p.name||p.label||'',p.lat??'',p.lng??'',p.tags?.wikipedia||'']);
  const saved=fromStore(key);if(saved)return saved;
  if(pendingPhotos.has(key))return pendingPhotos.get(key);
  const pending=(async()=>{
@@ -202,7 +207,7 @@ function render(places,root,{tr,focus}){
 }
 function renderInline(p,root){
  const rail=node('div','cityroute-stop-gallery');
- rail.setAttribute('aria-label',text('Фотографии: ','Photos: ')+p.name);
+ rail.setAttribute('aria-label',text('Фотографии: ','Photos: ')+(p.name||p.label||''));
  const status=node('p','stop-photo-status',text('Загружаем фото места…','Loading place photo…'));root.prepend(status);
  void photos(p).then(urls=>{
   if(!root.isConnected)return;
@@ -212,7 +217,7 @@ function renderInline(p,root){
    const figure=node('figure','cityroute-stop-photo');
    const link=node('a');link.href=sourceByUrl.get(url)?.source||url;
    link.target='_blank';link.rel='noopener noreferrer';
-   const img=node('img');img.alt=p.name+' · '+text('фото ','photo ')+(i+1);
+   const img=node('img');img.alt=(p.name||p.label||'')+' · '+text('фото ','photo ')+(i+1);
    img.loading='lazy';img.decoding='async';img.referrerPolicy='no-referrer';
    img.onload=()=>{const fallback=root.querySelector('.stop-photo-fallback-link');if(fallback)fallback.hidden=true;};
    img.onerror=()=>{figure.remove();if(!rail.children.length){rail.remove();const fallback=root.querySelector('.stop-photo-fallback-link');if(fallback)fallback.hidden=false;status.hidden=false;status.textContent=text('Фото недоступно · открой фотографии в Яндексе','Photo unavailable · view photos in Yandex');}};

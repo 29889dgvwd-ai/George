@@ -586,7 +586,17 @@ async function buildOnYandex(surprise=false,readyRoute=null,fixedWaypoints=null)
     }
    }catch{$('saveStatus').textContent=tr('Не удалось сохранить на устройстве.','Could not save locally.')}
   };
-  panel.append(action,save);
+  const share=document.createElement('button');share.type='button';share.className='secondary cityroute-share-route';
+  share.textContent=tr('Поделиться маршрутом ↗','Share route ↗');
+  share.onclick=async()=>{
+   const url=action.href;
+   try{
+    if(navigator.share){await navigator.share({title:'CityRoute',url});return;}
+    if(navigator.clipboard){await navigator.clipboard.writeText(url);$('saveStatus').textContent=tr('Ссылка скопирована — отправь её другу.','Link copied — send it to a friend.');return;}
+   }catch(error){if(error.name==='AbortError')return;}
+   window.prompt(tr('Скопируй ссылку на маршрут:','Copy route link:'),url);
+  };
+  panel.append(action,save,share);
   if(skipFoodStop){const restore=document.createElement('button');restore.type='button';restore.className='secondary';restore.textContent=tr('Добавить остановку на еду','Add a meal stop');restore.onclick=()=>{skipFoodStop=false;buildOnYandex();};panel.append(restore);}
   if(document.querySelector('[name="transport"]:checked')?.value==='transit'){
    const box=$('transportResult');box.hidden=false;box.replaceChildren();

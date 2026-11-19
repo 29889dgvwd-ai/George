@@ -32,5 +32,10 @@ const friends=`<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta 
 <main><div class="page-title"><span class="eyebrow">CITYROUTE / ДРУЗЬЯ</span><h1>Гуляйте вместе</h1><p>Построй маршрут и отправь друзьям ссылку из Яндекс Карт.</p></div>
 <section class="card" style="padding:28px"><h2>Как поделиться прогулкой</h2><p>На главной построй маршрут — появятся остановки, фотографии и ссылка «Открыть в Яндекс Картах». Отправь её другу, чтобы он увидел точки и смог построить свой путь.</p><p class="field-note">Аккаунты и приглашения на этой бесплатной статической версии пока недоступны. Все сохранения находятся только в твоём браузере.</p><a class="primary inline-link" href="index.html" style="max-width:240px;margin-top:18px">Построить маршрут →</a></section></main><script defer src="static-shell.js"></script></body></html>`;
 writeFileSync(join(out,'friends.html'),friends);
+// Refresh asset URLs on every page together, including the generated friends page.
+for(const page of ['index.html','walks.html','friends.html']){
+ const file=join(out,page);
+ writeFileSync(file,readFileSync(file,'utf8').replace(/((?:src|href)="[^"?]+\.(?:js|css))(?:\?[^" ]*)?"/g,'$1?v=20261119-4"'));
+}
 writeFileSync(join(out,'.nojekyll'),'');
 console.log('Built static CityRoute based on latest full source, ready for GitHub Pages or a static host');

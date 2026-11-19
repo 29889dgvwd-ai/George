@@ -202,5 +202,30 @@ function lookup(q){
  ranked.sort((a,b)=>Math.abs(a.n.length-term.length)-Math.abs(b.n.length-term.length));
  return ranked[0]?.p||null;
 }
-window.CityRoutePlaces={items,haversine,norm,lookup,metroLookup};
+// Shared by the planner and tests: explicit interests take precedence over broad style.
+const interestCategories={parks:['parks'],photo:['viewpoint','sights','water','art'],architecture:['sights'],cafe:['cafe'],restaurant:['restaurant'],dessert:['bakery'],museum:['museum'],theatre:['theatre'],cinema:['cinema'],viewpoint:['viewpoint'],water:['water','viewpoint'],nature:['parks'],shopping:['malls'],entertainment:['entertainment'],quest:['quest'],cycling:['parks','water'],picnic:['parks'],pets:['parks','water'],kids:['parks','entertainment'],art:['art'],books:['books'],history:['sights','museum']};
+function matches(p,{style='all',interests=[],rain=false,avoidMalls=false}={}){
+ if(avoidMalls&&p.type==='malls')return false;
+ if(rain&&!['food','culture','books','malls'].includes(p.type))return false;
+ const categories=interests.flatMap(k=>interestCategories[k]||[]);
+ if(categories.length)return categories.includes(p.category)||categories.includes(p.type);
+ if(style==='all'||style==='direct')return ['parks','water','sights','culture','books'].includes(p.type);
+ return p.type===style||p.category===style;
+}
+function selectStops(pool,targets,{start,end,style='all',interests=[],rain=false,avoidMalls=false,excluded=[],skipFood=false,maxDistance=3}={}){
+ const used=new Set(excluded);for(const p of [start,end])if(p){used.add(p.id);used.add(norm(p.name));}
+ const foodInterests=interests.filter(k=>['cafe','restaurant','dessert'].includes(k));
+ const scenicInterests=interests.filter(k=>!foodInterests.includes(k));
+ const foodWanted=!skipFood; // One optional meal stop, removable in the itinerary.
+ const available=p=>!used.has(p.id)&&!used.has(norm(p.name));
+ const choose=(target,food)=>{
+  const choices=pool.filter(p=>available(p)&&(food?p.type==='food':p.type!=='food')&&matches(p,{style:food?'food':style==='food'||foodInterests.length&&!scenicInterests.length?'all':style,interests:food?foodInterests:scenicInterests,rain,avoidMalls}))
+    .map(p=>({p,d:haversine(target,p)})).filter(x=>x.d<=maxDistance).sort((a,b)=>a.d-b.d);
+  const p=choices[0]?.p;if(p){used.add(p.id);used.add(norm(p.name));}return p;
+ };
+ const result=targets.map(t=>choose(t,false)).filter(Boolean);
+ if(foodWanted){const p=choose(targets[Math.floor(targets.length/2)]||start,true);if(p)result.splice(Math.floor(result.length/2),0,p);}
+ return result;
+}
+window.CityRoutePlaces={items,haversine,norm,lookup,metroLookup,matches,selectStops,interestCategories};
 })();

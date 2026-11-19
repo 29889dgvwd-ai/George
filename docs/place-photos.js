@@ -3,7 +3,7 @@
    No Yandex scraping, random stock imagery, or unrelated photos. */
 (()=>{'use strict';
 const cache=new Map(),pendingPhotos=new Map(),sourceByUrl=new Map();
-const TAG='cityroute-commons-images-v7:',TTL=5*24*3600*1000,EMPTY_TTL=60*60*1000;
+const TAG='cityroute-commons-images-v8:',TTL=5*24*3600*1000,EMPTY_TTL=60*60*1000;
 // Exact, verified Wikimedia Commons categories for identified Moscow venues.
 const verifiedCategories={
  'Кафе «Пушкинъ»':'Category:Café Pouchkine',
@@ -47,7 +47,7 @@ async function categoryImages(category){
  if(title==='Category:')return [];
  const data=await getJson(commonsApi({generator:'categorymembers',gcmtitle:title,gcmtype:'file',gcmlimit:'25',prop:'imageinfo',iiprop:'url|mime|extmetadata',iiurlwidth:'900'}));
  return Object.values(data.query?.pages||{}).filter(page=>{
-  const info=page.imageinfo?.[0];return info?.mime?.startsWith('image/')&&!['image/svg+xml','image/gif'].includes(info.mime);
+  const info=page.imageinfo?.[0];return ['image/jpeg','image/png','image/webp'].includes(info?.mime);
  }).slice(0,12).map(page=>{
   const info=page.imageinfo[0],url=info.thumburl||info.url;
   const license=info.extmetadata?.LicenseShortName?.value||'Wikimedia Commons';
@@ -69,7 +69,7 @@ async function wikidataImages(id){
 async function wikipediaImages(wikipedia){
  const match=/^(?:(ru|en|de):)?(.+)$/.exec(String(wikipedia||''));if(!match)return [];
  const lang=match[1]||'ru',title=match[2];
- const url='https://'+lang+'.wikipedia.org/w/api.php?'+new URLSearchParams({action:'query',prop:'pageimages|pageprops',titles:title,pithumbsize:'900',format:'json',origin:'*'});
+ const url='https://'+lang+'.wikipedia.org/w/api.php?'+new URLSearchParams({action:'query',prop:'pageimages|pageprops',redirects:'1',titles:title,pithumbsize:'900',format:'json',origin:'*'});
  const response=await getJson(url);
  const page=Object.values(response.query?.pages||{})[0];if(!page||page.missing!==undefined)return [];
  const source='https://'+lang+'.wikipedia.org/wiki/'+encodeURIComponent(title.replaceAll(' ','_'));
@@ -98,6 +98,7 @@ function fromStore(key){
  return null;
 }
 async function photos(p){
+ const known=window.CityRoutePlaces?.lookup(p.name||p.label);if(known&&(!Number.isFinite(p.lat)||window.CityRoutePlaces.haversine(known,p)<.15))p={...known,...p,tags:{...known.tags,...p.tags}};
  const key=String(p.id||p.name).slice(0,130);
  const saved=fromStore(key);if(saved)return saved;
  if(pendingPhotos.has(key))return pendingPhotos.get(key);
@@ -213,7 +214,8 @@ function renderInline(p,root){
    link.target='_blank';link.rel='noopener noreferrer';
    const img=node('img');img.alt=p.name+' · '+text('фото ','photo ')+(i+1);
    img.loading='lazy';img.decoding='async';img.referrerPolicy='no-referrer';
-   img.onerror=()=>{figure.remove();if(!rail.children.length){rail.remove();status.hidden=false;status.textContent=text('Фото недоступно · открой фотографии в Яндексе','Photo unavailable · view photos in Yandex');}};
+   img.onload=()=>{const fallback=root.querySelector('.stop-photo-fallback-link');if(fallback)fallback.hidden=true;};
+   img.onerror=()=>{figure.remove();if(!rail.children.length){rail.remove();const fallback=root.querySelector('.stop-photo-fallback-link');if(fallback)fallback.hidden=false;status.hidden=false;status.textContent=text('Фото недоступно · открой фотографии в Яндексе','Photo unavailable · view photos in Yandex');}};
    img.src=url;link.append(img);
    const credit=node('figcaption','',sourceByUrl.get(url)?.credit||p.name);
    figure.append(link,credit);rail.append(figure);

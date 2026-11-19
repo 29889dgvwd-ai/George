@@ -476,6 +476,11 @@ async function buildOnYandex(surprise=false,readyRoute=null){
       ?tr('Цель '+requestedKm+' км · пешеходный расчёт '+measured.toFixed(1)+' км'+(closeToGoal?' ✓':' · возможна разница'),'Target '+requestedKm+' km · walking estimate '+measured.toFixed(1)+' km'+(closeToGoal?' ✓':' · may differ'))
       :tr('Цель '+requestedKm+' км · промежуточные точки добавлены. Точную длину проверь в Яндексе.','Target '+requestedKm+' km · detour waypoints added. Confirm actual distance in Yandex.'));
   if(plannedStats?.tooShort)kmInfo.textContent=tr('Маршрут на '+requestedKm+' км не построен: старт и финиш слишком далеко друг от друга.','No '+requestedKm+' km route was built: the starting point and destination are too far apart.');
+  if(readyRoute){
+   const estimate=window.CityRouteReady.estimate(readyRoute);
+   heading.textContent=tr(...readyRoute.title);
+   kmInfo.textContent=tr('План: ≈ '+estimate.minutes+' мин, из них остановки '+estimate.stopMinutes+' мин · ≈ '+estimate.approxKm.toFixed(1)+' км. Точный пеший путь — в Яндексе.','Plan: ≈ '+estimate.minutes+' min, including '+estimate.stopMinutes+' min at stops · ≈ '+estimate.approxKm.toFixed(1)+' km. Confirm the walking route in Yandex.');
+  }
   panel.append(kmInfo);
   if(plannedStats?.tooShort){
     const d=distanceEngine.km(waypoints[0],waypoints.at(-1));

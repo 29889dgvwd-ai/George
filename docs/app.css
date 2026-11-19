@@ -270,3 +270,6 @@ body.yandex-widget-active .map-shell iframe:focus-visible{outline:3px solid #4f7
 @media(max-width:900px){.ready-routes{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:720px){.ready-routes{display:grid;overflow:visible;grid-template-columns:1fr;padding-bottom:0}.ready-route{width:100%;min-width:0;flex:initial}.ready-route-media{height:192px}.ready-filters{flex-wrap:nowrap;overflow-x:auto;padding:0 0 8px;scrollbar-width:none}.ready-filter{white-space:nowrap;flex:none}.ready-route-body h3{font-size:21px}}
 @media(prefers-reduced-motion:reduce){.ready-route{transition:none}.ready-route:hover{transform:none}}
+
+/* Compact, named route outline; detailed stops stay expandable on phones. */
+.ready-route-outline{border-left:2px solid var(--accent);padding-left:14px;display:grid;gap:8px;margin:4px 0;font-size:14px}.ready-route-outline>span{font-weight:650}.ready-route-details ol{list-style:decimal;padding-left:24px;max-height:300px}.ready-route-details li{border-left:1px solid var(--line);padding:0 0 12px 10px}.ready-route-details a{color:var(--text);text-underline-offset:3px}.ready-route-details small{display:block;font-weight:400}.ready-route-timing{font-size:13px!important}.ready-route-outline small{font-size:13px}

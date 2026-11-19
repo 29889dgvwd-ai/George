@@ -19,10 +19,10 @@ test('Curated walks cover multiple durations and every food claim refers to the 
   const plan=ready.resolve(route.id,places.items);
   assert.ok(plan,route.id);
   assert.equal(route.englishNames.length,route.names.length);
-  assert.ok(route.names.length>=5);
+  assert.ok(route.names.length>=3);
   const info=ready.estimate(plan);
   assert.ok(Number.isFinite(info.approxKm)&&info.approxKm>0);
-  assert.ok(info.minutes>=50);
+  assert.ok(info.minutes>=40);
   if(info.minutes>=240)overFour++;
   if(info.minutes<120)underTwo++;
   if(info.food.length)withFood++;
@@ -32,4 +32,14 @@ test('Curated walks cover multiple durations and every food claim refers to the 
  assert.ok(overFour>=1,'at least one walk lasting 4+ hours');
  assert.ok(underTwo>=1,'at least one walk under 2 hours');
  assert.ok(withFood>=5,'at least five routes with catalogue food stops');
+});
+
+test('Duration filters cover short walks through four hours, with exact boundaries',()=>{
+ const expected=[[40,'quick'],[60,'quick'],[65,'short'],[120,'medium'],[180,'extended'],[240,'extended'],[245,'long']];
+ for(const [minutes,filter] of expected){
+  assert.ok(ready.matchesDuration(minutes,filter));
+  for(const other of ['quick','short','medium','extended','long'].filter(f=>f!==filter))assert.equal(ready.matchesDuration(minutes,other),false);
+ }
+ for(const filter of ['quick','short','medium','extended','long'])assert.ok(ready.routes.some(r=>ready.matchesDuration(ready.estimate(ready.resolve(r.id,places.items)).minutes,filter)),filter);
+ const shortest=Math.min(...ready.routes.map(r=>ready.estimate(ready.resolve(r.id,places.items)).minutes));assert.equal(shortest,40);
 });

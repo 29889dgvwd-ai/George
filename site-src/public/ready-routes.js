@@ -30,6 +30,21 @@ const raw=[
 ['heritage',['Кремль и Москва у реки','Kremlin and riverside Moscow'],['Архитектура','Architecture'],['Извилистый маршрут мимо главных городских символов.','A winding route among Moscow’s landmarks.'],['Дом Пашкова','Храм Христа Спасителя','Патриарший мост','Культурный квартал «Красный Октябрь»','Болотная набережная','Парк «Зарядье»','Красная площадь','Казанский собор на Красной площади','Александровский сад'],'Красная площадь',100,[500,1400]],
 ['north',['Северный речной: целый день','Northern River Station day out'],['Большой маршрут','Long walk'],['Большая парковая прогулка от Речного до усадьбы.','A substantial park walk from the river station to an estate.'],['Парк Дружбы у Речного вокзала','Парк Северного речного вокзала','Северный речной вокзал','Парк «Покровское-Стрешнево»','Усадьба «Покровское-Стрешнево»'],'Северный речной вокзал',165,[600,1600]]
 ];
+// Compact alternatives use the same catalogue and retain every original walk.
+const alternatives=[
+ ['zaryadye-short',['Зарядье за 40 минут','Zaryadye in about 40 minutes'],'heart',[2,3,4,5],25,[400,900]],
+ ['centre-hour',['Центр и перекус за час','City centre and a quick bite'],'heart',[0,1,2,6,7],30,[500,1200]],
+ ['river-hour',['Час у воды: Музеон и Горький','An hour by the river'],'river',[0,1,2,3,4],20,[500,1200]],
+ ['ponds-coffee',['Патрики и кофе','Patriarch’s Ponds and coffee'],'patri',[0,1,2,3],45,[3000,4000]],
+ ['art-two',['Два часа у ГЭС-2','Two hours around GES-2'],'art',[0,1,2,3,4,5],95,[500,1500]],
+ ['vdnh-two',['Фонтаны и космос на ВДНХ','VDNKh fountains and space'],'vdnh',[0,1,3,4,5],90,[600,1700]],
+ ['river-three',['Три часа вдоль Москвы-реки','Three hours along the Moskva'],'river',[0,1,2,3,4,5],125,[600,1600]],
+ ['art-four',['Четыре часа искусства и набережных','Four hours of art and riverbanks'],'art',[0,1,2,3,4,5,6,7,8],180,[500,1500]]
+];
+for(const [id,title,parent,indices,stops,budget] of alternatives){
+ const base=raw.find(r=>r[0]===parent),names=indices.map(i=>base[4][i]);
+ raw.push([id,title,['В своём темпе','At your pace'],['От '+names[0]+' до '+names.at(-1)+': прогулка с остановками для отдыха и фото.','From '+(translations[names[0]]||names[0])+' to '+(translations[names.at(-1)]||names.at(-1))+', with breaks for rest and photos.'],names,names.find(n=>n===base[5])||names[0],stops,budget]);
+}
 const routes=raw.map(([id,title,tag,description,names,cover,stopMinutes,foodBudget])=>({id,title,tag,description,names,englishNames:names.map(n=>translations[n]||n),cover,stopMinutes,foodBudget}));
 function resolve(id,items){
  const route=routes.find(r=>r.id===id);if(!route||!Array.isArray(items))return null;
@@ -47,10 +62,15 @@ function estimate(plan){
  const direct=plan.points.slice(1).reduce((km,p,i)=>km+haversine(plan.points[i],p),0);
  const approxKm=direct*1.25; // Heuristic detour factor, NOT a measured pedestrian route.
  const minutes=Math.round((approxKm/4.2*60+plan.stopMinutes)/5)*5;
- return {approxKm,minutes,food:plan.points.filter(p=>p.type==='food')};
+ return {approxKm,minutes,walkingMinutes:Math.round(approxKm/4.2*60),stopMinutes:plan.stopMinutes,food:plan.points.filter(p=>p.type==='food')};
 }
-root.CityRouteReady={routes,resolve,estimate};
-if(typeof module!=='undefined')module.exports={routes,resolve,estimate};
+function matchesDuration(minutes,filter){
+ return filter==='all'||filter==='quick'&&minutes>=40&&minutes<=60||
+  filter==='short'&&minutes>60&&minutes<120||filter==='medium'&&minutes>=120&&minutes<180||
+  filter==='extended'&&minutes>=180&&minutes<=240||filter==='long'&&minutes>240;
+}
+root.CityRouteReady={routes,resolve,estimate,matchesDuration};
+if(typeof module!=='undefined')module.exports={routes,resolve,estimate,matchesDuration};
 if(typeof document==='undefined')return;
 const host=document.getElementById('readyRoutes');if(!host)return;
 const tr=(ru,en)=>document.body.classList.contains('english')?en:ru;
@@ -59,10 +79,10 @@ const bilingual=(el,values)=>{
  return el;
 };
 const node=(tag,cls)=>{const el=document.createElement(tag);if(cls)el.className=cls;return el;};
-const plans=routes.map(route=>resolve(route.id,root.CityRoutePlaces?.items||[])).filter(Boolean);
+const plans=routes.slice().sort((a,b)=>{const order=['zaryadye-short','centre-hour','vdnh-two','boulevards','art-four','river'];return (order.includes(a.id)?order.indexOf(a.id):99)-(order.includes(b.id)?order.indexOf(b.id):99)}).map(route=>resolve(route.id,root.CityRoutePlaces?.items||[])).filter(Boolean);
 const state={filter:'all',more:false};
 const filters=node('div','ready-filters');filters.setAttribute('role','group');filters.setAttribute('aria-label','Продолжительность / Duration');
-const options=[['all',['Все маршруты','All routes']],['short',['До 2 часов','Under 2 hours']],['medium',['2–4 часа','2–4 hours']],['long',['4+ часа','4+ hours']],['food',['С кафе','With cafés']]];
+const options=[['all',['Все маршруты','All routes']],['quick',['40–60 минут','40–60 minutes']],['short',['1–2 часа','1–2 hours']],['medium',['2–3 часа','2–3 hours']],['extended',['3–4 часа','3–4 hours']],['long',['Больше 4 часов','Over 4 hours']],['food',['С кафе','With cafés']]];
 const controls=new Map();
 for(const [key,label] of options){
  const button=bilingual(node('button','ready-filter'),label);button.type='button';button.dataset.filter=key;
@@ -113,21 +133,33 @@ function makeCard(plan){
   const fact=node('a','ready-check-source');fact.href=verified.check.source;fact.target='_blank';fact.rel='noopener noreferrer';
   fact.textContent=tr('Указанный чек '+verified.name+': '+verified.check.label+' ↗','Published bill '+(translations[verified.name]||verified.name)+': '+verified.check.label+' ↗');  meta.dataset.verified='true';meta.__checkLink=fact;
  }
- const details=node('details','ready-route-details'),summary=bilingual(node('summary'),['Все '+plan.points.length+' остановок','All '+plan.points.length+' stops']),stops=node('ol');
+ const details=node('details','ready-route-details'),summary=bilingual(node('summary'),['Схема · '+plan.points.length+' остановок','Itinerary · '+plan.points.length+' stops']),stops=node('ol');
  for(const [i,p] of plan.points.entries()){
-  const line=bilingual(node('li'),[p.name,plan.englishNames[i]]);if(p.type==='food')line.classList.add('ready-food-stop');stops.append(line);
+  const line=node('li'),link=bilingual(node('a'),[p.name,plan.englishNames[i]]);
+  link.href='https://yandex.ru/maps/?'+new URLSearchParams({ll:p.lng+','+p.lat,z:'17',text:p.name});link.target='_blank';link.rel='noopener noreferrer';line.append(link);
+  if(p.type==='food'){
+   line.classList.add('ready-food-stop');
+   line.append(bilingual(node('small'),[p.check?.label?'Средний чек: '+p.check.label:'Средний чек уточняется',p.check?.label?'Average bill: '+p.check.label:'Average bill not verified']));
+  }
+  stops.append(line);
  }
  details.append(summary,stops);
+ const preview=node('div','ready-route-outline');
+ preview.append(bilingual(node('span'),[plan.names[0],plan.englishNames[0]]),bilingual(node('small'),['Ещё '+(plan.points.length-2)+' остановки по пути','Another '+(plan.points.length-2)+' stops along the way']),bilingual(node('span'),[plan.names.at(-1),plan.englishNames.at(-1)]));
+ const split=bilingual(node('p','ready-route-timing'),['Пешком ≈ '+info.walkingMinutes+' мин · остановки '+info.stopMinutes+' мин','Walking ≈ '+info.walkingMinutes+' min · stops '+info.stopMinutes+' min']);
+ const cost=bilingual(node('small'),['План расходов: '+plan.foodBudget[0]+'–'+plan.foodBudget[1]+' ₽/чел. на еду. Билеты и транспорт отдельно.','Food allowance: ₽'+plan.foodBudget[0]+'–'+plan.foodBudget[1]+' per person. Tickets and transport extra.']);
  const actions=node('div','ready-route-actions'),open=bilingual(node('button','primary'),['Открыть прогулку →','Open walk →']);
  open.type='button';open.dataset.readyRoute=plan.id;
  open.onclick=()=>document.dispatchEvent(new CustomEvent('cityroute:ready-route',{detail:plan.id}));
  actions.append(open);
+ const mapLink=bilingual(node('a','ready-food-link'),['Пеший маршрут в Яндексе','Walking route in Yandex']);
+ mapLink.href='https://yandex.ru/maps/?'+new URLSearchParams({rtext:plan.points.map(p=>p.lat+','+p.lng).join('~'),rtt:'pd'});mapLink.target='_blank';mapLink.rel='noopener noreferrer';actions.append(mapLink);
  const lookup=node('a','ready-food-link');
  lookup.href='https://yandex.ru/maps/?'+new URLSearchParams({text:'кафе и рестораны рядом '+plan.names[Math.floor(plan.names.length/2)]+' Москва'}).toString();
  lookup.target='_blank';lookup.rel='noopener noreferrer';bilingual(lookup,['Где поесть рядом ↗','Find food nearby ↗']);actions.append(lookup);
  body.append(meta,title,desc,spend);
  if(meta.__checkLink)body.append(meta.__checkLink);
- body.append(details,actions);card.append(media,body);
+ body.append(split,preview,details,cost,actions);card.append(media,body);
  let urls=[],idx=0,loaded=false;
  function show(){
   if(!urls.length)return;
@@ -152,9 +184,7 @@ const cards=new Map(plans.map(plan=>[plan.id,makeCard(plan)]));
 function renderCards(){
  const filtered=plans.filter(plan=>{
   const i=estimate(plan);
-  return state.filter==='all'||state.filter==='food'&&i.food.length>0||
-   state.filter==='short'&&i.minutes<120||state.filter==='medium'&&i.minutes>=120&&i.minutes<240||
-   state.filter==='long'&&i.minutes>=240;
+  return state.filter==='food'?i.food.length>0:matchesDuration(i.minutes,state.filter);
  });
  const displayed=state.more?filtered:filtered.slice(0,6);
  host.replaceChildren(...displayed.map(p=>cards.get(p.id)));

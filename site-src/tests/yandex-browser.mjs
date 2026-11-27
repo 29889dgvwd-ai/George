@@ -47,6 +47,29 @@ try{
  const gpsFrame=new URL(await page.locator('#yandexWidget').getAttribute('src'));
  check(gpsFrame.searchParams.get('ll')==='37.580000,55.735000','Yandex map centers exactly on GPS');
  check(await page.locator('#locationOnMap').isVisible(),'Full Yandex location link available');
+ // Simulate indoor/network positioning failure, then a valid precise fix.
+ await page.evaluate(()=>{
+  window.__gpsAttempts=[];
+  navigator.geolocation.getCurrentPosition=(ok,fail,options)=>{
+   window.__gpsAttempts.push(options.enableHighAccuracy);
+   queueMicrotask(()=>options.enableHighAccuracy?ok({coords:{latitude:55.735,longitude:37.58,accuracy:13}}):fail({code:2}));
+  };
+ });
+ await page.locator('#locateReal').click();
+ await page.waitForFunction(()=>window.__gpsAttempts.length===2&&!document.getElementById('locateReal').disabled);
+ check(JSON.stringify(await page.evaluate(()=>window.__gpsAttempts))==='[false,true]','Network position failure retries precise GPS');
+ check((await page.locator('#mapLocationStatus').innerText()).includes('Местоположение определено'),'Map toolbar displays GPS result');
+ await page.evaluate(()=>{
+  window.__gpsAttempts=[];
+  navigator.geolocation.getCurrentPosition=(ok,fail,options)=>{window.__gpsAttempts.push(options.enableHighAccuracy);queueMicrotask(()=>fail({code:1}));};
+ });
+ await page.locator('#mapGPS').click();
+ await page.waitForFunction(()=>window.__gpsAttempts.length===1&&!document.getElementById('mapGPS').disabled);
+ check((await page.locator('#mapLocationStatus').innerText()).includes('Доступ запрещён'),'Denied access explained without inventing GPS');
+ check(await page.locator('#startPoint').inputValue()==='Моё местоположение','Permission failure preserves prior valid start');
+ await page.evaluate(()=>{delete navigator.geolocation.getCurrentPosition;});
+ await page.locator('#locateReal').click();
+ await page.waitForFunction(()=>document.getElementById('locationStatus').textContent.includes('Местоположение определено')&&!document.getElementById('locateReal').disabled);
  await page.locator('#findPlacesTop').click();
  check(await page.locator('#nearbyDisclosure').evaluate(el=>el.open),'Nearby places section opened');
  const count=await page.locator('#placesList > div').count();

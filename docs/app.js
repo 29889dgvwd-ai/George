@@ -6,10 +6,11 @@ const world=window.CityRouteWorld;
 let areaCenter=null,areaController=null,searchController=null,areaRevision=0,areaTimer=0,requestedArea=null;
 let currentRoutePath=[],currentRoutePlaces=[];let itinerary=null;let avoidance=null;let map,points=[null,null],routeLayer=null,generation=0,controller=null;
 let skipFoodStop=false;
-let yandexFallbackStops=null,lastLocated=null,locationPending=false;
+let yandexFallbackStops=null,lastLocated=null,locationPending=false,cancelLocationRequest=null;
 const english=()=>document.body.classList.contains('english');
 const tr=(ru,en)=>english()?en:ru;
 function status(ru,en,error=false){for(const el of [$('formStatus'),$('routeStatus')]){el.textContent=tr(ru,en||ru);el.setAttribute('role',error?'alert':'status')}}
+function locationMessage(message){$('locationStatus').textContent=message;const note=$('mapLocationStatus');if(note)note.textContent=message;}
 function busy(value){buttons.forEach(b=>{b.disabled=value;b.setAttribute('aria-busy',String(value))});$('buildReal').querySelector('.ru').textContent=value?'Строим маршрут…':'Построить маршрут';$('buildReal').querySelector('.en').textContent=value?'Building…':'Build route'}
 function cancel(){generation++;controller?.abort();controller=null;busy(false)}
 function resetRoute(){currentRoutePath=[];currentRoutePlaces=[];yandexFallbackStops=null;$('rerollRoute').hidden=true;updateYandex();itinerary?.clear();$('itinerary').replaceChildren();$('transportResult').replaceChildren();$('transportResult').hidden=true;if(routeLayer){map?.removeLayer(routeLayer);routeLayer=null}$('routeDetail').textContent=''}
@@ -62,15 +63,35 @@ function updateYandex(){
 // Yandex iframe: clicking/dragging a point is not exposed to this site without Yandex JS API key.
 // Start and destination are edited through text inputs or the explicit geolocation button.
 // Request location only after an explicit click; keep it out of storage.
+// Standard location first, then precise GPS; never substitute invented coordinates.
+function requestDeviceLocation(onSuccess,onError,onRetry=()=>{}){
+ let active=true,attempt=0,timer=0;
+ const stop=()=>{active=false;clearTimeout(timer);};
+ const finish=(callback,value)=>{if(!active)return;stop();callback(value);};
+ const retry=err=>{if(!active)return;if(err?.code===1||attempt>=2){finish(onError,err);return;}onRetry();run(true);};
+ function run(precise){
+  if(!active)return;
+  const id=++attempt;
+  try{navigator.geolocation.getCurrentPosition(position=>{
+   if(!active||id!==attempt)return;
+   const c=position?.coords;
+   if(!Number.isFinite(c?.latitude)||!Number.isFinite(c?.longitude)||Math.abs(c.latitude)>90||Math.abs(c.longitude)>180){retry({code:2});return;}
+   finish(onSuccess,position);
+  },error=>{if(active&&id===attempt)retry(error);},{enableHighAccuracy:precise,timeout:precise?18000:10000,maximumAge:precise?0:30000});}
+  catch{retry({code:2});}
+ }
+ timer=setTimeout(()=>finish(onError,{code:3}),60000);
+ run(false);return stop;
+}
 $('returnStart').onclick=()=>{
  const destination=currentRoutePath.length?currentRoutePath[0]:points[0]?[points[0].lat,points[0].lng]:null;
  const note=$('returnStatus'),link=$('returnLink'),button=$('returnStart');
  link.hidden=true;
  if(!destination){note.textContent=tr('Сначала введи начало прогулки или построй маршрут.','Enter a starting point or build a route first.');return;}
  const show=(origin)=>{const url=new URL('https://yandex.ru/maps/');url.search=new URLSearchParams({rtext:(origin?origin.join(','):'')+'~'+destination.join(','),rtt:'pd'}).toString();link.href=url.href;link.hidden=false;button.disabled=false;button.removeAttribute('aria-busy');note.textContent=origin?tr('Готово. Открой маршрут: Яндекс покажет путь и время пешком.','Ready. Open the route for walking directions and time.'):tr('Геопозиция недоступна. Открой маршрут и укажи своё положение в Яндекс Картах.','Location is unavailable. Open the route and set your position in Yandex Maps.');};
- if(!navigator.geolocation){show(null);return;}
+ if(!window.isSecureContext||!navigator.geolocation){show(null);return;}
  button.disabled=true;button.setAttribute('aria-busy','true');note.textContent=tr('Определяем твоё положение…','Finding your location…');
- navigator.geolocation.getCurrentPosition(p=>show([p.coords.latitude,p.coords.longitude]),()=>show(null),{enableHighAccuracy:true,timeout:10000,maximumAge:30000});
+ requestDeviceLocation(p=>show([p.coords.latitude,p.coords.longitude]),()=>show(null));
 };
 function scrollMap(){ $('mapSection').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});}
 function mark(i,p,label,fill=true){
@@ -98,7 +119,7 @@ const forbidden=/(^|[^\p{L}])(хуй\p{L}*|пизд\p{L}*|бляд\p{L}*|сук�
 for(const f of [city,start,end,$('gptNotes')]){let clean=f.value;f.addEventListener('input',()=>{if(forbidden.test(f.value))f.value=clean;else clean=f.value})}
 map={removeLayer(){}};
  // The visible Yandex map, place list and GPS no longer require Leaflet.
-for(const [field,i] of [[start,0],[end,1]])field.addEventListener('input',()=>{cancel();points[i]=null;resetRoute();if(i===0){invalidateSearch();chosen=[];drawChosen();drawPlaces([]);lastLocated=null;$('locationStatus').textContent='';$('locationOnMap').hidden=true}field.removeAttribute('aria-invalid');status('','')});
+for(const [field,i] of [[start,0],[end,1]])field.addEventListener('input',()=>{cancel();points[i]=null;resetRoute();if(i===0){cancelLocationRequest?.();invalidateSearch();chosen=[];drawChosen();drawPlaces([]);lastLocated=null;locationMessage('');$('locationOnMap').hidden=true}field.removeAttribute('aria-invalid');status('','')});
 function invalidateSearch(){
  placesRequestId++;searchController?.abort();clearTimeout(placeSearchTimer);
 }
@@ -107,7 +128,7 @@ function changeArea(){
  if(points[0]&&start.value===points[0].label)start.value='';
  if(points[1]&&end.value===points[1].label)end.value='';
  chosen=[];drawChosen();drawPlaces([]);$('placeQuery').value='';$('placesStatus').textContent='';
- $('locationStatus').textContent='';$('locationOnMap').hidden=true;
+ locationMessage('');$('locationOnMap').hidden=true;
  cancel();points=[null,null];lastLocated=null;resetRoute();status('','');$('saveStatus').textContent='';updateSearchLink();
  const seed=world.region(city.value);
  window.CityRouteReady.setArea(city.value.trim(),seed,seed?.items||[],seed?'':'idle');
@@ -117,7 +138,7 @@ function commitArea(){
  const name=city.value.trim();if(!name||name===requestedArea)return;
  requestedArea=name;void refreshCollections();
 }
-city.addEventListener('input',()=>{changeArea();if(city.value.trim()&&!world.region(city.value))areaTimer=setTimeout(commitArea,650)});
+city.addEventListener('input',()=>{cancelLocationRequest?.();changeArea();if(city.value.trim()&&!world.region(city.value))areaTimer=setTimeout(commitArea,650)});
 city.addEventListener('change',commitArea);
 
 async function refreshCollections(anchor){
@@ -611,81 +632,72 @@ async function build(surprise=false){
 
 document.querySelectorAll('[data-preference], [name=transport], [name=mood]').forEach(input=>input.addEventListener('change',()=>{chosen=[];drawChosen();cancel();resetRoute();avoidance=null;status('','')}));
 form.addEventListener('submit',e=>{e.preventDefault();build()});$('buildMap').onclick=()=>build();$('surprise').onclick=()=>build(true);$('rerollRoute').onclick=()=>build(true);
-$('clearReal').onclick=()=>{chosen=[];drawChosen();if(poiLayer)map.removeLayer(poiLayer);nearby=[];$('placesList').replaceChildren();$('placesStatus').textContent='';cancel();resetRoute();points=[null,null];start.value=end.value='';start.removeAttribute('aria-invalid');end.removeAttribute('aria-invalid');invalidateSearch();skipFoodStop=false;updateYandex();status('','')};
+$('clearReal').onclick=()=>{cancelLocationRequest?.();lastLocated=null;locationMessage('');$('locationOnMap').hidden=true;chosen=[];drawChosen();if(poiLayer)map.removeLayer(poiLayer);nearby=[];$('placesList').replaceChildren();$('placesStatus').textContent='';cancel();resetRoute();points=[null,null];start.value=end.value='';start.removeAttribute('aria-invalid');end.removeAttribute('aria-invalid');invalidateSearch();skipFoodStop=false;updateYandex();status('','')};
 function locateActual(){
  if(locationPending)return;
- if(!window.isSecureContext||!navigator.geolocation){
-  const msg=tr('GPS требует HTTPS и разрешения браузера. Открой опубликованный сайт напрямую в Safari и разреши геопозицию.','GPS requires HTTPS and browser permission. Open the published website directly in Safari and allow location.');
-  $('locationStatus').textContent=msg;status(msg,msg,true);return;
+ const policy=document.permissionsPolicy||document.featurePolicy;
+ const blocked=policy?.allowsFeature?.('geolocation')===false;
+ if(!window.isSecureContext||!navigator.geolocation||blocked){
+  const msg=tr('Геолокация недоступна здесь. Открой сайт напрямую по HTTPS в Safari или Chrome, либо введи адрес.','Location is unavailable here. Open the HTTPS site directly in Safari or Chrome, or enter an address.');
+  locationMessage(msg);status(msg,msg,true);return;
  }
  locationPending=true;
  const controls=[$('locateReal'),$('mapGPS')];
  controls.forEach(b=>{b.disabled=true;b.setAttribute('aria-busy','true')});
- $('locationStatus').textContent=tr('Получаем геопозицию устройства…','Getting your device location…');
- let done=false,watchdog=0;
+ locationMessage(tr('Определяем местоположение… Разреши доступ, если браузер спросит.','Finding your location… Allow access if your browser asks.'));
+ let done=false,stop=null;
  const finish=()=>{
-  if(done)return false;done=true;locationPending=false;clearTimeout(watchdog);
+  if(done)return false;done=true;locationPending=false;stop?.();cancelLocationRequest=null;
   controls.forEach(b=>{b.disabled=false;b.removeAttribute('aria-busy')});return true;
  };
+ cancelLocationRequest=()=>{if(finish())locationMessage('');};
  function fail(err){
   if(!finish())return;
   const message=err?.code===1
-   ?tr('Доступ к геопозиции запрещён. iPhone: Настройки → Конфиденциальность и безопасность → Службы геолокации → Safari → разрешить. Открой ссылку напрямую, не во встроенном браузере.','Location denied. iPhone: Settings → Privacy & Security → Location Services → Safari → allow. Open the site directly in Safari.')
-   :err?.code===2?tr('Браузер не получил координаты. Проверь службы геолокации и попробуй ещё раз.','Browser could not get coordinates. Check Location Services and retry.')
-   :tr('Геопозиция не отвечает. Открой CityRoute по HTTPS в Safari, разреши доступ или введи адрес.','Location request timed out. Open CityRoute using HTTPS in Safari and allow access or enter an address.');
-  $('locationStatus').textContent=message;status(message,message,true);
+   ?tr('Доступ запрещён. В Safari открой настройки этого сайта → Геопозиция → Разрешить. Проверь также службы геолокации iPhone.','Access denied. In Safari, open website settings → Location → Allow. Also check iPhone Location Services.')
+   :err?.code===2?tr('Устройство не смогло определить положение. Проверь геолокацию и интернет или введи адрес.','Your device could not determine its location. Check Location Services and internet, or enter an address.')
+   :tr('Не удалось получить геопозицию вовремя. Повтори попытку или введи адрес.','Location request timed out. Try again or enter an address.');
+  locationMessage(message);status(message,message,true);
  }
  function success(pos){
-  if(done)return;
-  const p={lat:Number(pos?.coords?.latitude),lng:Number(pos?.coords?.longitude)};
-  if(!Number.isFinite(p.lat)||!Number.isFinite(p.lng)){fail({code:2});return}
   if(!finish())return;
-  cancel();resetRoute();
-  const foundRegion=world.regionAt(p);city.value=foundRegion?.name||'';
-  changeArea();areaCenter=p;void refreshCollections(p);
-  mark(0,p,tr('Моё местоположение','My location'));lastLocated=p;
-  // Resolve a readable nearby address when possible; never lose GPS precision.
-  // This is an optional public geocoder request, not a blocking prerequisite.
-  const expectedLabel=start.value,expectedGeneration=generation;
-  void (async()=>{
-   try{
-    const url='https://photon.komoot.io/reverse?'+new URLSearchParams({
-      lat:p.lat.toFixed(6),lon:p.lng.toFixed(6),lang:'ru'
-    });
-    const result=await fetch(url,{signal:AbortSignal.timeout(2800)});
-    if(!result.ok)return;
-    const properties=(await result.json()).features?.[0]?.properties||{};
-    if(points[0]?.lat===p.lat&&points[0]?.lng===p.lng&&!city.value&&properties.city){city.value=properties.city;void refreshCollections(p);updateSearchLink()}
-    const street=[properties.street,properties.housenumber].filter(Boolean).join(', ');
-    const name=street||[properties.name,properties.city||properties.district].filter(Boolean).join(', ');
-    if(name&&name.length<=140&&start.value===expectedLabel&&generation===expectedGeneration&&
-       points[0]?.lat===p.lat&&points[0]?.lng===p.lng){
-       const label=name+(properties.city&&!name.includes(properties.city)?', '+properties.city:'');
-       points[0].label=label;start.value=label;
-       status('Местоположение определено. Старт: '+label+'.','Location found. Start: '+label+'.');
-    }
-   }catch{}
-  })();
-  const accuracy=Math.round(Number(pos.coords.accuracy)||0);
-  $('locationStatus').textContent=tr('✓ Местоположение определено · точность '+accuracy+' м.','✓ Location found · accuracy '+accuracy+' m.');
+  const p={lat:pos.coords.latitude,lng:pos.coords.longitude};
+  const foundRegion=world.regionAt(p);
+  if(foundRegion?.name!==city.value.trim()){
+   city.value=foundRegion?.name||'';changeArea();
+  }else{
+   invalidateSearch();chosen=[];drawChosen();drawPlaces([]);cancel();resetRoute();
+  }
+  areaCenter=p;mark(0,p,tr('Моё местоположение','My location'));lastLocated=p;
+  const accuracy=Number.isFinite(pos.coords.accuracy)?Math.round(pos.coords.accuracy):null;
+  locationMessage(tr('✓ Местоположение определено'+(accuracy!==null?' · точность '+accuracy+' м.':''),'✓ Location found'+(accuracy!==null?' · accuracy '+accuracy+' m.':'')));
   const url=new URL('https://yandex.ru/maps/');
   url.search=new URLSearchParams({ll:p.lng.toFixed(6)+','+p.lat.toFixed(6),z:'17',lang:english()?'en_RU':'ru_RU'}).toString();
   $('locationOnMap').href=url.href;$('locationOnMap').hidden=false;
-  status('','');
+  status('','');void refreshCollections(p);
+  // Address lookup is optional and cannot replace the actual GPS coordinates.
+  const expectedLabel=start.value,expectedGeneration=generation;
+  void (async()=>{
+   const abort=new AbortController(),timeout=setTimeout(()=>abort.abort(),3500);
+   try{
+    const url='https://photon.komoot.io/reverse?'+new URLSearchParams({lat:p.lat.toFixed(6),lon:p.lng.toFixed(6),lang:english()?'en':'ru'});
+    const result=await fetch(url,{signal:abort.signal});
+    if(!result.ok)return;
+    const properties=(await result.json()).features?.[0]?.properties||{};
+    if(lastLocated!==p||points[0]?.lat!==p.lat||points[0]?.lng!==p.lng)return;
+    if(!city.value&&properties.city){city.value=properties.city;void refreshCollections(p);updateSearchLink();}
+    const street=[properties.street,properties.housenumber].filter(Boolean).join(', ');
+    const name=street||[properties.name,properties.city||properties.district].filter(Boolean).join(', ');
+    if(name&&name.length<=140&&start.value===expectedLabel&&generation===expectedGeneration){
+     const label=name+(properties.city&&!name.includes(properties.city)?', '+properties.city:'');
+     points[0].label=label;start.value=label;updateYandex();
+    }
+   }catch{}finally{clearTimeout(timeout);}
+  })();
  }
- // High-accuracy GPS can time out indoors or on iOS: retry once with lower accuracy
- // and a recently cached fix, without ever inventing a location.
- watchdog=setTimeout(()=>fail({code:3}),21000);
- const coarse=()=>{
-  if(done)return;
-  $('locationStatus').textContent=tr('Точный GPS не ответил, пробуем обычную геолокацию…','Precise GPS timed out; trying standard location…');
-  try{navigator.geolocation.getCurrentPosition(success,fail,{enableHighAccuracy:false,timeout:7000,maximumAge:120000})}
-  catch{fail({code:2})}
- };
- try{navigator.geolocation.getCurrentPosition(success,e=>{if(e?.code===1)fail(e);else coarse()},{enableHighAccuracy:true,timeout:9500,maximumAge:60000})}
- catch{coarse()}
+ stop=requestDeviceLocation(success,fail,()=>locationMessage(tr('Обычная геолокация не ответила, пробуем точный GPS…','Standard location failed; trying precise GPS…')));
 }
- $('locateReal').onclick=locateActual;
+$('locateReal').onclick=locateActual;
 $('mapGPS').onclick=locateActual;
 
 function captureSettings(){return [...form.querySelectorAll('input,select,textarea')].filter(e=>e.id||e.name||e.dataset.preference).map(e=>({id:e.id,name:e.name,value:e.value,preference:e.dataset.preference,checked:e.checked}));}

@@ -35,7 +35,7 @@ writeFileSync(join(out,'friends.html'),friends);
 // Refresh asset URLs on every page together, including the generated friends page.
 for(const page of ['index.html','walks.html','friends.html']){
  const file=join(out,page);
- writeFileSync(file,readFileSync(file,'utf8').replace(/((?:src|href)="[^"?]+\.(?:js|css))(?:\?[^" ]*)?"/g,'$1?v=20261127-1"'));
+ writeFileSync(file,readFileSync(file,'utf8').replace(/((?:src|href)="[^"?]+\.(?:js|css))(?:\?[^" ]*)?"/g,'$1?v=20261127-2"'));
 }
 writeFileSync(join(out,'.nojekyll'),'');
 console.log('Built static CityRoute based on latest full source, ready for GitHub Pages or a static host');

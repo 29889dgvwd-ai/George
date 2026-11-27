@@ -116,6 +116,18 @@ try{
  link=new URL(await page.locator('#yandexNav').getAttribute('href'));
  check(link.searchParams.get('rtext')?.includes('Санкт-Петербург'),'Typed endpoints route in other cities');
 
+ // A non-Moscow collection works offline, keeps its local currency and restores the exact stops.
+ await page.locator('#city').fill('Paris');await page.locator('#city').press('Tab');
+ await page.locator('[data-ready-route^="area-"]').first().click();
+ await page.locator('.cityroute-save-route').waitFor({state:'visible'});
+ const stopsBefore=await page.locator('#yandexNav').getAttribute('href');
+ check(new URL(stopsBefore).searchParams.get('rtext').split('~').every(p=>p.startsWith('48.')),'Paris collection keeps all points in Paris');
+ check((await page.locator('#itinerary').innerText()).includes('31–45 €'),'Paris meal displays its published euro price');
+ await page.waitForFunction(()=>[...document.querySelectorAll('.cityroute-stop-gallery img')].some(img=>img.complete&&img.naturalWidth>0));
+ await page.locator('.cityroute-save-route').click();
+ await page.goto(base+'/walks.html');await page.locator('.saved-route .saved-actions button').first().click();
+ await page.locator('.cityroute-save-route').waitFor({state:'visible'});
+ check(await page.locator('#yandexNav').getAttribute('href')===stopsBefore,'Reopening a saved international walk preserves every waypoint');
  // Reproduce the user's iPhone report: known metro names, twelve-kilometer
  // target, and endpoints that are actually much further than 12 km apart.
  await page.goto(base+'/',{waitUntil:'domcontentloaded'});

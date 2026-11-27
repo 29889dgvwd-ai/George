@@ -69,6 +69,34 @@ function matchesDuration(minutes,filter){
   filter==='short'&&minutes>60&&minutes<120||filter==='medium'&&minutes>=120&&minutes<180||
   filter==='extended'&&minutes>=180&&minutes<=240||filter==='long'&&minutes>240;
 }
+function cityPlans(city,anchor,pool){
+ if(!anchor)return [];
+ const km=root.CityRoutePlaces.haversine;
+ const places=pool.filter(p=>p.name&&km(anchor,p)<=5);
+ const scenic=places.filter(p=>p.type!=='food'&&p.type!=='malls');
+ const meal=places.filter(p=>p.type==='food');
+ const themes=[
+  [scenic,['По центру','City walk']],
+  [scenic.filter(p=>['parks','water'].includes(p.type)),['Парки и набережные','Parks and waterfronts']],
+  [scenic.filter(p=>['culture','art','sights'].includes(p.type)),['Архитектура и культура','Art and architecture']]
+ ];
+ const plans=[],signatures=new Set();
+ for(const [candidates,theme] of themes){
+  const first=candidates.find(p=>p.photos?.length||root.CityRouteGuide?.photo(p))||candidates[0];if(!first)continue;
+  const points=[first];
+  for(let i=0;i<3;i++){
+   const last=points.at(-1),choices=i===1&&meal.length?meal:(candidates.length>=3?candidates:scenic);
+   const next=choices.filter(p=>!points.some(x=>x.id===p.id||x.name===p.name)&&km(p,last)>.08&&km(p,last)<2.8)
+    .sort((a,b)=>(km(last,a)-(a.check?.label?0.45:0))-(km(last,b)-(b.check?.label?0.45:0)))[0];
+   if(next)points.push(next);
+  }
+  if(points.length<2)continue;
+  const signature=points.map(p=>p.id).sort().join('|');if(signatures.has(signature))continue;signatures.add(signature);
+  const names=points.map(p=>p.name),englishNames=points.map(p=>p.en||p.name),last=points.at(-1);
+  plans.push({id:'area-'+plans.length,city,title:[first.name+' — '+last.name,(first.en||first.name)+' — '+(last.en||last.name)],tag:theme,names,englishNames,points,cover:first.name,stopMinutes:points.length*10});
+ }
+ return plans;
+}
 root.CityRouteReady={routes,resolve,estimate,matchesDuration};
 if(typeof module!=='undefined')module.exports={routes,resolve,estimate,matchesDuration};
 if(typeof document==='undefined')return;
@@ -79,7 +107,8 @@ const bilingual=(el,values)=>{
  return el;
 };
 const node=(tag,cls)=>{const el=document.createElement(tag);if(cls)el.className=cls;return el;};
-const plans=routes.slice().sort((a,b)=>{const order=['zaryadye-short','centre-hour','vdnh-two','boulevards','art-four','river'];return (order.includes(a.id)?order.indexOf(a.id):99)-(order.includes(b.id)?order.indexOf(b.id):99)}).map(route=>resolve(route.id,root.CityRoutePlaces?.items||[])).filter(Boolean);
+const moscowPlans=routes.slice().sort((a,b)=>{const order=['zaryadye-short','centre-hour','vdnh-two','boulevards','art-four','river'];return (order.includes(a.id)?order.indexOf(a.id):99)-(order.includes(b.id)?order.indexOf(b.id):99)}).map(route=>resolve(route.id,root.CityRoutePlaces?.items||[])).filter(Boolean);
+let plans=moscowPlans,areaState='',areaName='Москва';
 const state={filter:'all',more:false};
 const home=host.parentElement;
 const filters=node('div','ready-filters');filters.setAttribute('role','group');filters.setAttribute('aria-label','Продолжительность / Duration');
@@ -90,18 +119,14 @@ for(const [key,label] of options){
  button.addEventListener('click',()=>{state.filter=key;state.more=false;renderCards();});
  controls.set(key,button);filters.append(button);
 }
-const hint=bilingual(node('p','ready-estimate-note'),[
- 'Время включает прогулку и остановки. Километраж — приблизительная оценка по точкам, а не проложенный пеший путь. Стоимость еды — пример бюджета на человека, не подтверждённый средний чек.',
- 'Times include stops. Distances are waypoint estimates, not measured walking routes. Food budget is an example per person, not a verified average bill.'
-]);
 const more=bilingual(node('button','ready-more'),['Все прогулки','All walks']);more.type='button';
 const dialog=node('dialog','walks-dialog');dialog.id='walksCatalogue';
 const bar=node('div','walks-dialog-bar'),title=bilingual(node('h2'),['Прогулки по Москве','Moscow walks']);title.id='walksCatalogueTitle';dialog.setAttribute('aria-labelledby',title.id);
 const close=bilingual(node('button','secondary'),['Закрыть','Close']);close.type='button';close.onclick=()=>dialog.close();
 bar.append(title,close);dialog.append(bar);document.body.append(dialog);
 home.querySelector('.ready-heading').append(more);
-more.onclick=()=>{state.more=true;dialog.append(filters,hint,host);dialog.showModal();document.body.classList.add('walks-dialog-open');renderCards();};
-dialog.addEventListener('close',()=>{state.more=false;state.filter='all';home.append(host);filters.remove();hint.remove();document.body.classList.remove('walks-dialog-open');renderCards();more.focus();});
+more.onclick=()=>{state.more=true;dialog.append(filters,host);dialog.showModal();document.body.classList.add('walks-dialog-open');renderCards();};
+dialog.addEventListener('close',()=>{state.more=false;state.filter='all';home.append(host);filters.remove();document.body.classList.remove('walks-dialog-open');renderCards();more.focus();});
 dialog.addEventListener('click',event=>{if(event.target===dialog){const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)dialog.close();}});
 const photos=root.CityRoutePhotos;
 const photoObserver=typeof IntersectionObserver==='function'?new IntersectionObserver(entries=>{
@@ -110,35 +135,31 @@ const photoObserver=typeof IntersectionObserver==='function'?new IntersectionObs
 function makeCard(plan){
  const info=estimate(plan),card=node('article','ready-route'),media=node('div','ready-route-media');
  const pic=node('img','ready-route-image');pic.alt=plan.cover;pic.loading='eager';pic.decoding='async';pic.hidden=true;
- const fallback=bilingual(node('span','ready-photo-fallback'),['МОСКВА · МАРШРУТ','MOSCOW · WALK']);
- const badge=bilingual(node('span','ready-route-tag'),plan.tag);
+ const fallback=photos.illustration(plan.points.find(p=>p.name===plan.cover));
+
  const counter=node('span','ready-photo-count');counter.hidden=true;
  const arrowPrev=node('button','ready-photo-arrow ready-photo-prev'),arrowNext=node('button','ready-photo-arrow ready-photo-next');
  arrowPrev.type=arrowNext.type='button';arrowPrev.textContent='‹';arrowNext.textContent='›';
  arrowPrev.setAttribute('aria-label',tr('Предыдущее фото','Previous photo'));arrowNext.setAttribute('aria-label',tr('Следующее фото','Next photo'));
  arrowPrev.hidden=arrowNext.hidden=true;
  const credit=node('a','ready-photo-credit');credit.target='_blank';credit.rel='noopener noreferrer';credit.hidden=true;
- const locationLink=node('a','ready-yandex-photos');locationLink.href='https://yandex.ru/maps/?'+new URLSearchParams({ll:plan.points.find(p=>p.name===plan.cover).lng+','+plan.points.find(p=>p.name===plan.cover).lat,z:'16',text:plan.cover}).toString();locationLink.target='_blank';locationLink.rel='noopener noreferrer';locationLink.textContent=tr('Фото в Яндексе ↗','Yandex photos ↗');
- media.append(pic,fallback,badge,arrowPrev,arrowNext,counter,credit,locationLink);
+ media.append(fallback,pic,arrowPrev,arrowNext,counter,credit);
  const body=node('div','ready-route-body');
- const title=bilingual(node('h3'),plan.title),desc=bilingual(node('p'),plan.description);
+ const title=bilingual(node('h3'),plan.title);
  const durRu=info.minutes>=120?Math.floor(info.minutes/60)+' ч '+(info.minutes%60?info.minutes%60+' мин':''):info.minutes+' мин';
  const durEn=info.minutes>=120?Math.floor(info.minutes/60)+' h '+(info.minutes%60?info.minutes%60+' min':''):info.minutes+' min';
  const meta=node('div','ready-route-metrics');
- const time=bilingual(node('span'),['◷ ≈ '+durRu+' с остановками','◷ ≈ '+durEn+' incl. stops']);
- const distance=bilingual(node('span'),['↗ ≈ '+info.approxKm.toFixed(1)+' км','↗ ≈ '+info.approxKm.toFixed(1)+' km']);
+ const time=bilingual(node('span'),['≈ '+durRu+' с остановками','≈ '+durEn+' incl. stops']);
+ const distance=bilingual(node('span'),['≈ '+info.approxKm.toFixed(1)+' км','≈ '+info.approxKm.toFixed(1)+' km']);
  meta.append(time,distance);
- const foodName=info.food[0]?.name||'';
- const spend=bilingual(node('p','ready-route-spend'),[
-  (foodName?'🍴 '+foodName+' · ':'🍴 Кафе по пути · ')+'план на еду '+plan.foodBudget[0].toLocaleString('ru-RU')+'–'+plan.foodBudget[1].toLocaleString('ru-RU')+' ₽/чел.',
-  (foodName?'🍴 '+(translations[foodName]||foodName)+' · ':'🍴 Nearby cafés · ')+'plan for food ₽'+plan.foodBudget[0]+'–'+plan.foodBudget[1]+' / person'
- ]);
- const verified=info.food.find(p=>p.check?.label&&p.check?.source);
- if(verified){
-  const fact=node('a','ready-check-source');fact.href=verified.check.source;fact.target='_blank';fact.rel='noopener noreferrer';
-  fact.textContent=tr('Указанный чек '+verified.name+': '+verified.check.label+' ↗','Published bill '+(translations[verified.name]||verified.name)+': '+verified.check.label+' ↗');  meta.dataset.verified='true';meta.__checkLink=fact;
- }
- const details=node('details','ready-route-details'),summary=bilingual(node('summary'),['Схема · '+plan.points.length+' остановок','Itinerary · '+plan.points.length+' stops']),stops=node('ol');
+ const food=info.food.find(p=>p.check?.label)||info.food[0];
+ const spend=node('p','ready-route-spend');
+ if(food){
+  const bill=food.check?.label;
+  bilingual(spend,[food.name+(bill?' · средний чек '+bill:''),(food.en||translations[food.name]||food.name)+(bill?' · average bill '+bill:'')]);
+  if(food.check?.source){const source=node('a','ready-check-source');source.href=food.check.source;source.target='_blank';source.rel='noopener noreferrer';bilingual(source,['Источник','Source']);spend.append(' ',source);}
+ }else if(plan.foodBudget)bilingual(spend,['Бюджет на еду '+plan.foodBudget.join('–')+' ₽/чел.','Food budget ₽'+plan.foodBudget.join('–')+' per person']);
+ const details=node('details','ready-route-details'),summary=bilingual(node('summary'),['Остановки · '+plan.points.length+' остановок','Stops · '+plan.points.length+' stops']),stops=node('ol');
  for(const [i,p] of plan.points.entries()){
   const line=node('li'),link=bilingual(node('a'),[p.name,plan.englishNames[i]]);
   link.href='https://yandex.ru/maps/?'+new URLSearchParams({ll:p.lng+','+p.lat,z:'17',text:p.name});link.target='_blank';link.rel='noopener noreferrer';line.append(link);
@@ -149,25 +170,19 @@ function makeCard(plan){
   stops.append(line);
  }
  details.append(summary,stops);
- const preview=node('div','ready-route-outline');
- preview.append(bilingual(node('span'),[plan.names[0],plan.englishNames[0]]),bilingual(node('small'),['Ещё '+(plan.points.length-2)+' остановки по пути','Another '+(plan.points.length-2)+' stops along the way']),bilingual(node('span'),[plan.names.at(-1),plan.englishNames.at(-1)]));
- const split=bilingual(node('p','ready-route-timing'),['Пешком ≈ '+info.walkingMinutes+' мин · остановки '+info.stopMinutes+' мин','Walking ≈ '+info.walkingMinutes+' min · stops '+info.stopMinutes+' min']);
- const cost=bilingual(node('small'),['План расходов: '+plan.foodBudget[0]+'–'+plan.foodBudget[1]+' ₽/чел. на еду. Билеты и транспорт отдельно.','Food allowance: ₽'+plan.foodBudget[0]+'–'+plan.foodBudget[1]+' per person. Tickets and transport extra.']);
- const actions=node('div','ready-route-actions'),open=bilingual(node('button','primary'),['Открыть прогулку →','Open walk →']);
+ const split=bilingual(node('p','ready-route-timing'),['Пешком ≈ '+info.walkingMinutes+' мин · на остановки '+info.stopMinutes+' мин','Walking ≈ '+info.walkingMinutes+' min · stops '+info.stopMinutes+' min']);
+ const actions=node('div','ready-route-actions'),open=bilingual(node('button','primary'),['Открыть прогулку','Open walk']);
  open.type='button';open.dataset.readyRoute=plan.id;
  open.onclick=()=>{if(dialog.open)dialog.close();document.dispatchEvent(new CustomEvent('cityroute:ready-route',{detail:plan.id}));};
  actions.append(open);
  const mapLink=bilingual(node('a','ready-food-link'),['Пеший маршрут в Яндексе','Walking route in Yandex']);
  mapLink.href='https://yandex.ru/maps/?'+new URLSearchParams({rtext:plan.points.map(p=>p.lat+','+p.lng).join('~'),rtt:'pd'});mapLink.target='_blank';mapLink.rel='noopener noreferrer';actions.append(mapLink);
- const lookup=node('a','ready-food-link');
- lookup.href='https://yandex.ru/maps/?'+new URLSearchParams({text:'кафе и рестораны рядом '+plan.names[Math.floor(plan.names.length/2)]+' Москва'}).toString();
- lookup.target='_blank';lookup.rel='noopener noreferrer';bilingual(lookup,['Где поесть рядом ↗','Find food nearby ↗']);actions.append(lookup);
- const extra=node('div','ready-extra');extra.append(desc,split,preview,details,cost);
+ const extra=node('div','ready-extra');extra.append(split,details);
  const toggle=bilingual(node('button','ready-details-toggle'),['Подробнее','Details']);toggle.type='button';toggle.setAttribute('aria-expanded','false');
  extra.id='walk-details-'+plan.id;toggle.setAttribute('aria-controls',extra.id);extra.hidden=true;
  toggle.onclick=()=>{extra.hidden=!extra.hidden;toggle.setAttribute('aria-expanded',String(!extra.hidden));};
  body.append(meta,title,spend,toggle);
- if(meta.__checkLink)body.append(meta.__checkLink);
+
  body.append(extra,actions);card.append(media,body);
  let urls=[],idx=0,loaded=false;
  function show(){
@@ -183,24 +198,43 @@ function makeCard(plan){
  card.__loadReadyPhoto=()=>{
   if(loaded)return;loaded=true;
   Promise.resolve(photos?.photos(plan.points.find(p=>p.name===plan.cover))||[]).then(pics=>{
-   urls=[...new Set((pics||[]).filter(u=>typeof u==='string'&&u.startsWith('https://')))].slice(0,5);
+   urls=[...new Set((pics||[]).filter(u=>typeof u==='string'&&(/^https:\/\//.test(u)||new URL(u,document.baseURI).origin===location.origin)))].slice(0,5);
    if(urls.length)show();
   }).catch(()=>{});
  };
  return card;
 }
-const cards=new Map(plans.map(plan=>[plan.id,makeCard(plan)]));
+let cards=new Map();
 function renderCards(){
  const filtered=plans.filter(plan=>{
   const i=estimate(plan);
   return state.filter==='food'?i.food.length>0:matchesDuration(i.minutes,state.filter);
  });
  const displayed=state.more?filtered:filtered.slice(0,6);
+ for(const p of displayed)if(!cards.has(p.id))cards.set(p.id,makeCard(p));
  host.replaceChildren(...displayed.map(p=>cards.get(p.id)));
- for(const card of host.children){if(photoObserver)photoObserver.observe(card);else card.__loadReadyPhoto?.();}
+ const label=areaName||tr('рядом','nearby');const cityLabel=document.getElementById('collectionCity');if(cityLabel)cityLabel.textContent=label;
+ if(!plans.length){
+  const messages={loading:['Ищем прогулки…','Finding walks…'],idle:['',''],error:['Не удалось загрузить места.','Could not load nearby places.'],empty:['Пока мало мест для подборки.','Too few places for a collection.']};
+  const msg=messages[areaState]||messages.empty;
+  if(msg[0])host.append(bilingual(node('p','ready-empty'),msg));
+  if(areaState==='error'){const retry=bilingual(node('button','secondary'),['Повторить','Retry']);retry.type='button';retry.onclick=()=>document.dispatchEvent(new Event('cityroute:retry-area'));host.append(retry)}
+ }
+ more.hidden=plans.length===0;
+ for(const card of host.querySelectorAll('.ready-route')){if(photoObserver)photoObserver.observe(card);else card.__loadReadyPhoto?.();}
  more.querySelector('.ru').textContent='Все прогулки · '+plans.length;more.querySelector('.en').textContent='All walks · '+plans.length;
  for(const [key,button] of controls){const active=key===state.filter;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));}
- if(!displayed.length){const empty=bilingual(node('p','ready-empty'),['Пока нет прогулок такой длительности. Выбери другой фильтр.','No walks match this filter. Try another.']);host.append(empty);}
+ if(plans.length&&!displayed.length){const empty=bilingual(node('p','ready-empty'),['Пока нет прогулок такой длительности. Выбери другой фильтр.','No walks match this filter. Try another.']);host.append(empty);}
 }
+root.CityRouteReady.getPlan=id=>plans.find(p=>p.id===id);
+root.CityRouteReady.setArea=(name,center,pool,reason='')=>{
+ const isMoscow=center&&root.CityRouteWorld.regionAt(center)===root.CityRouteWorld.moscow;
+ areaName=name;areaState=reason;
+ const next=isMoscow?moscowPlans:cityPlans(name,center,pool);
+ if(plans!==next){photoObserver?.disconnect();cards=new Map();plans=next;}
+ state.filter='all';
+ title.replaceChildren();bilingual(title,['Прогулки · '+(name||'рядом'),'Walks · '+(name||'nearby')]);
+ renderCards();
+};
 renderCards();
 })(typeof window!=='undefined'?window:globalThis);

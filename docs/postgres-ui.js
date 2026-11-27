@@ -117,14 +117,14 @@ function initializeCloudUi(){
    await cloud.checkConnection();
    const signed=await updateUser();
    if(signed)await fetchSaved();
-   else message('✓ PostgreSQL проверен: каталог Москвы доступен. Вход необязателен.','✓ PostgreSQL verified: Moscow catalogue online. Signing in is optional.');
+   else message('','');
   }catch(e){
    await updateUser().catch(()=>{});
    message('Проверка PostgreSQL не прошла: '+(e?.message||'нет ответа')+'. Доступен локальный каталог.','PostgreSQL check failed: '+(e?.message||'no response')+'. Local catalogue remains available.',true);
   }
  })();
 }
-message('Облачная проверка запустится при открытии этого раздела.','Cloud status will be checked when you open this section.');
+
 if(typeof IntersectionObserver==='function'){
  const observer=new IntersectionObserver(entries=>{
   if(entries.some(entry=>entry.isIntersecting)){observer.disconnect();initializeCloudUi()}

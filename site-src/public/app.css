@@ -305,3 +305,39 @@ input,select,textarea{border-radius:12px!important}.pick span{border-radius:12px
 .cityroute-stop-gallery img{height:210px;border-radius:12px}.cityroute-stop-facts small{font-size:13px}.cityroute-step-leg span{color:var(--muted);font-size:13px}.cityroute-map-cta,.cityroute-save-route,.cityroute-share-route{font-size:15px;padding:14px 16px;min-height:48px}.cityroute-share-route{width:100%;margin-top:10px}
 .saved-search{width:100%;margin:8px 0 18px;padding:13px 15px;background:var(--bg);border:1px solid var(--line);color:var(--text)}.saved-route{box-shadow:none;border-radius:14px}.saved-actions{gap:8px}
 @media(max-width:760px){body{font-size:15px}header{padding:10px 16px;gap:8px}.header-actions button{min-width:38px;height:38px}.project-nav a{font-size:12px;padding:7px 9px}main{padding:20px 14px}.planner{padding:18px}.card{margin-bottom:18px}.page-title h1{font-size:30px}.cityroute-step{gap:10px}.cityroute-step-body{padding:12px}.cityroute-step-marker{width:30px;height:30px;flex-basis:30px;font-size:12px}.cityroute-stop-gallery img{height:180px}.saved-route{flex-wrap:wrap}.saved-actions{flex-wrap:wrap}}
+
+/* Paper, ink and brick red, shared by the planner and saved walks. */
+:root{--bg:#f6f5f2;--card:#fff;--text:#242320;--muted:#605d57;--line:#d9d6cf;--soft:#eeeae4;--accent:#a53626;--button:#292824;--on-button:#fff;--accent-wash:#f5e6e1;--shadow:none}
+body.dark{--bg:#1c1c1a;--card:#252523;--text:#f4f1ea;--muted:#bcb7ae;--line:#47443f;--soft:#34332f;--accent:#ffae98;--button:#f1eae0;--on-button:#242320;--accent-wash:#49342e}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+header{border-color:var(--line)}.logo{font-weight:800}.header-actions button{border-radius:6px}
+.page-title h1,.ready-route h3,.quick-journey-title{font-family:Georgia,"Times New Roman",serif;font-weight:500;letter-spacing:-.035em}
+.page-title h1{font-size:clamp(2.6rem,6vw,4.2rem);line-height:1.02;margin:0}
+.city-title{display:flex;align-items:end;justify-content:space-between;gap:20px;padding:12px 0 22px;border-bottom:1px solid var(--text)}
+.city-title .city-field{width:min(230px,42%)}.city-title label{margin-bottom:4px}
+.fields.endpoint-fields{grid-template-columns:repeat(2,minmax(0,1fr))}
+.card,.ready-route,.cityroute-step-body,.saved-route{border-radius:8px}
+.primary,.primary:hover,.dark .primary{background:var(--button);color:var(--on-button);border-radius:6px;box-shadow:none}
+.primary:hover{filter:brightness(1.12)}.secondary,.pick span,.ready-heading .ready-more,.ready-filter,.map-actions button{border-radius:6px}
+input,select,textarea{border-radius:6px!important}.project-nav a[aria-current=page]{border-radius:4px;background:var(--accent-wash)}
+.ready-heading{align-items:baseline;justify-content:flex-start}.ready-heading>a{display:inline;color:var(--accent);margin-left:auto}.ready-heading .ready-more{margin-left:0}
+#collectionCity{color:var(--muted);font-size:.88em;font-weight:450}.ready-heading h2{margin:0}
+.ready-heading h2>span:last-child::before{content:" / ";color:var(--muted)}
+.ready-route{border-color:var(--line)}.ready-route:hover{box-shadow:none}.ready-route-media{background:var(--soft);border-radius:7px 7px 0 0;height:185px}
+.ready-route-body h3{font-size:1.55rem;line-height:1.1}.ready-route-metrics>span{padding:0;background:none;font-weight:500;color:var(--muted)}
+.ready-route-metrics>span+span::before{content:"·";padding:0 6px}
+.ready-route-spend:empty,.field-note:empty,#formStatus:empty,#routeStatus:empty,#saveStatus:empty,.map-provider:empty{display:none}
+.ready-details-toggle{color:var(--accent);min-height:32px!important}.ready-route-media img{position:absolute;inset:0}
+.place-illustration{display:block;width:100%;height:100%;object-fit:cover}.place-illustration[hidden]{display:none}
+.cityroute-step-media>.place-illustration{height:125px;background:var(--soft);object-fit:contain}
+.ready-photo-credit,.image-credit{position:absolute;bottom:4px;right:4px;left:auto;background:#252525d9;color:white;border-radius:3px;padding:2px 5px;max-width:95%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10px;text-decoration:none;z-index:1}
+.place-list-media .image-credit{font-size:9px}.cityroute-stop-photo figcaption{white-space:normal}
+.ready-route-actions .primary,.map-legend i,.cityroute-step-marker,.start-dot,.end-dot,.walking-badge{box-shadow:none}
+.walking-badge,.return-card,.dark .return-card{background:var(--soft);border-color:var(--line);color:var(--text)}
+.start-dot,.cityroute-step:first-child .cityroute-step-marker{background:var(--accent);color:var(--card)}
+.end-dot,.cityroute-step:last-child .cityroute-step-marker{background:var(--button);color:var(--on-button)}
+.map-gps-button{background:var(--soft)!important;color:var(--accent)!important;border-color:var(--line)!important}
+.cityroute-step:not(:last-child)::before{border-color:var(--line);opacity:1}.ready-filter.active{background:var(--button);color:var(--on-button)}
+.cityroute-step-body>strong{font-weight:650}.friend-links{display:flex;gap:12px;flex-wrap:wrap;margin-top:18px}
+.saved-cover{max-width:230px;margin-top:10px}.saved-cover img{width:100%;height:100px;object-fit:cover;border-radius:4px}.saved-cover figure{margin:0}.saved-cover figcaption{font-size:.7rem;color:var(--muted)}footer a{color:var(--muted)}
+@media(max-width:650px){.city-title{align-items:start;flex-direction:column;gap:16px}.city-title .city-field{width:100%}.fields.endpoint-fields{grid-template-columns:1fr}.ready-heading{gap:8px}.ready-heading>a{font-size:.85rem}.ready-heading .ready-more{min-height:40px}.ready-route-media{height:174px}.page-title h1{font-size:2.7rem}.submit-actions{width:100%}.submit-actions button{flex:1}}

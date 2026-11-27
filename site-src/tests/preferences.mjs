@@ -31,3 +31,34 @@ test('Yandex map and navigation both use the selected transport mode',()=>{
  assert.equal(new URL(elements.yandexNav.href).searchParams.get('rtt'),'mt');assert.equal(new URL(elements.yandexWidget.src).searchParams.get('rtt'),'mt');
  mode='walk';vm.runInContext('updateYandex()',context);assert.equal(new URL(elements.yandexNav.href).searchParams.get('rtt'),'pd');
 });
+
+function worldRuntime(fetch){
+ const ctx=vm.createContext({window:{},document:{documentElement:{lang:'ru'}},URL,URLSearchParams,AbortSignal,fetch});
+ for(const filename of ['places-data','place-guide','world-places'])vm.runInContext(readFileSync(new URL('../public/'+filename+'.js',import.meta.url),'utf8'),ctx);
+ return ctx.window.CityRouteWorld;
+}
+test('Unlisted city returns geographically scoped venues with photos and original currencies',async()=>{
+ const center={lat:-33.92,lng:18.42},urls=[];
+ const world=worldRuntime(async value=>{
+  const u=new URL(value);urls.push(u);
+  const json=u.hostname.includes('open-meteo')?{results:[{name:'Cape Town',latitude:center.lat,longitude:center.lng}]}:
+   u.hostname.startsWith('overpass')?{elements:[{type:'node',id:91,lat:-33.921,lon:18.419,tags:{name:'Example Cafe',amenity:'cafe',average_bill:'150',currency:'ZAR',opening_hours:'09:00-16:00'}},{type:'node',id:29,lat:55.75,lon:37.62,tags:{name:'Distant Cafe',amenity:'cafe'}}]}:
+   {query:{pages:{7:{title:'Example Museum',pageid:7,coordinates:[{lat:-33.923,lon:18.425}],thumbnail:{source:'https://upload.wikimedia.org/example.jpg'},pageimage:'Example.jpg'},8:{title:'Former civil parish',coordinates:[{lat:-33.922,lon:18.422}]}}}};
+  return {ok:true,json:async()=>json};
+ });
+ const anchor=await world.cityCenter('Cape Town');assert.equal(anchor.lat,center.lat);
+ const result=await world.nearby(anchor,3000);
+ assert.deepEqual(Array.from(result,p=>p.name).sort(),['Example Cafe','Example Museum']);
+ const cafe=result.find(p=>p.type==='food');assert.equal(cafe.check.label,'150 ZAR');assert.equal(cafe.check.source,'https://www.openstreetmap.org/node/91');
+ assert.ok(result.find(p=>p.name==='Example Museum').photos[0].url.endsWith('example.jpg'));
+ assert.equal(urls.filter(u=>u.hostname.includes('overpass')).length,1);
+ assert.equal((await world.nearby(anchor,3000)).length,2);assert.equal(urls.length,3);
+});
+test('Seed lookup and meal prices are isolated by city and survive provider outages',async()=>{
+ const world=worldRuntime(async()=>{throw Error('offline')});
+ const palace=await world.locate('Дворцовая площадь','Санкт-Петербург');assert.ok(palace.lat>59.9);
+ const cafe=await world.locate('Север','Санкт-Петербург');assert.equal(cafe.check.label,'500–900 ₽');
+ const paris=await world.nearby(await world.locate('Лувр','Париж'),3000);
+ assert.ok(paris.some(p=>p.check?.label.includes('€')));assert.ok(paris.every(p=>p.lat<49&&p.lng<3));
+ assert.equal(world.localPlace('Дворцовая площадь',world.region('Казань')),null);
+});

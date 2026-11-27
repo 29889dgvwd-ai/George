@@ -10,5 +10,5 @@ window.CityRouteAI={async apply(signal){
   if(style)kinds.push(style)
  }
  if(kinds.length)$('routeStyle').value=kinds[0];
- const msg=$('aiStatus');if(msg)msg.textContent=en?'Your preferences were applied using local rules, not an AI service.':'Пожелания применены по локальным правилам без подключения к GPT.';
+ const msg=$('aiStatus');if(msg)msg.textContent=en?'Preferences applied.':'Пожелания учтены.';
 }};

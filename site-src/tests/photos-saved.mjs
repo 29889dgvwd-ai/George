@@ -28,5 +28,7 @@ test('Saved walk search keeps deletion indices and translates its empty result',
 });
 test('English switch is visible and generated pages use the same fresh assets',()=>{
  assert.ok(!source('social.css').includes('#language{display:none}'));
- for(const page of ['index','walks','friends']){const html=readFileSync(new URL('../../docs/'+page+'.html',import.meta.url),'utf8');assert.ok(html.includes('id="language"'));assert.ok(html.includes('app.css?v=20261119-4'));assert.ok(html.includes('static-shell.js?v=20261119-4'));}
+ const versions=new Set();
+ for(const page of ['index','walks','friends']){const html=readFileSync(new URL('../../docs/'+page+'.html',import.meta.url),'utf8');assert.ok(html.includes('id="language"'));for(const asset of ['app.css','static-shell.js']){const url=[...html.matchAll(/(?:src|href)="([^"]+)"/g)].map(m=>m[1]).find(u=>u.startsWith(asset+'?v='));assert.ok(url);versions.add(url.split('?v=')[1]);}}
+ assert.equal(versions.size,1);
 });

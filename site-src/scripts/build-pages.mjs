@@ -25,17 +25,17 @@ walks=walks
  .replace('После входа доступны маршруты из аккаунта. Старые прогулки остаются в этом браузере.','Сохранённые прогулки этого браузера. Можно открыть, удалить или построить новый маршрут.')
  .replace(/<button id="refreshSocial"[\s\S]*?<\/button>/,'')
  .replace(/<section class="card social-card"><div class="section-heading"><span class="step">02<\/span>[\s\S]*?<\/section>/,'')
- .replace('<script defer src="static-shell.js"></script>','<script defer src="static-shell.js"></script><script defer src="static-walks.js"></script>');
+ .replace('<script defer src="static-shell.js"></script>','<script defer src="static-shell.js"></script><script defer src="places-data.js"></script><script defer src="place-guide.js"></script><script defer src="place-photos.js"></script><script defer src="static-walks.js"></script>');
 writeFileSync(join(out,'walks.html'),walks);
 const friends=`<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CityRoute — друзья</title><link rel="stylesheet" href="app.css"><link rel="stylesheet" href="social.css"></head>
 <body data-page="friends"><header><a class="logo" href="index.html">City<span>Route</span></a><nav class="project-nav"><a href="index.html">Маршрут</a><a href="walks.html">Мои прогулки</a><a href="friends.html" aria-current="page">Друзья</a></nav><div class="header-actions"><button id="language" type="button">EN</button><button id="theme" type="button">◐</button></div></header>
-<main><div class="page-title"><span class="eyebrow">CITYROUTE / ДРУЗЬЯ</span><h1>Гуляйте вместе</h1><p>Построй маршрут и отправь друзьям ссылку из Яндекс Карт.</p></div>
-<section class="card" style="padding:28px"><h2>Как поделиться прогулкой</h2><p>На главной построй маршрут — появятся остановки, фотографии и ссылка «Открыть в Яндекс Картах». Отправь её другу, чтобы он увидел точки и смог построить свой путь.</p><p class="field-note">Аккаунты и приглашения на этой бесплатной статической версии пока недоступны. Все сохранения находятся только в твоём браузере.</p><a class="primary inline-link" href="index.html" style="max-width:240px;margin-top:18px">Построить маршрут →</a></section></main><script defer src="static-shell.js"></script></body></html>`;
+<main><div class="page-title"><h1><span class="ru">Поделиться прогулкой</span><span class="en">Share a walk</span></h1></div>
+<section class="card social-card"><p><span class="ru">Открой прогулку и нажми «Поделиться маршрутом».</span><span class="en">Open a walk and select “Share route”.</span></p><div class="friend-links"><a class="primary inline-link" href="walks.html"><span class="ru">Мои прогулки</span><span class="en">My walks</span></a><a class="secondary inline-link" href="index.html"><span class="ru">Построить маршрут</span><span class="en">Plan a walk</span></a></div></section></main><script defer src="static-shell.js"></script></body></html>`;
 writeFileSync(join(out,'friends.html'),friends);
 // Refresh asset URLs on every page together, including the generated friends page.
 for(const page of ['index.html','walks.html','friends.html']){
  const file=join(out,page);
- writeFileSync(file,readFileSync(file,'utf8').replace(/((?:src|href)="[^"?]+\.(?:js|css))(?:\?[^" ]*)?"/g,'$1?v=20261119-4"'));
+ writeFileSync(file,readFileSync(file,'utf8').replace(/((?:src|href)="[^"?]+\.(?:js|css))(?:\?[^" ]*)?"/g,'$1?v=20261127-1"'));
 }
 writeFileSync(join(out,'.nojekyll'),'');
 console.log('Built static CityRoute based on latest full source, ready for GitHub Pages or a static host');

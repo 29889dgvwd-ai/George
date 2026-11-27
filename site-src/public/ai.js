@@ -14,4 +14,3 @@ window.CityRouteAI={async apply(signal){
   say('GPT-5.4 mini: '+plan.explanation,'GPT-5.4 mini: '+plan.explanation);
  }catch{if(signal.aborted)return;say('GPT не ответил вовремя. Строим по выбранным настройкам без ИИ.','GPT did not respond. Continuing without AI.');}
 }};
-fetch('/api/ai/preferences').then(r=>r.ok?r.json():null).then(data=>{if(data&&!data.configured)document.getElementById('aiStatus').textContent='GPT ожидает активации. Маршруты доступны без ИИ. / GPT activation pending; routes work without AI.';}).catch(()=>{});

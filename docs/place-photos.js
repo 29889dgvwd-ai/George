@@ -3,7 +3,7 @@
    No Yandex scraping, random stock imagery, or unrelated photos. */
 (()=>{'use strict';
 const cache=new Map(),pendingPhotos=new Map(),sourceByUrl=new Map();
-const TAG='cityroute-commons-images-v9:',TTL=5*24*3600*1000,EMPTY_TTL=60*60*1000;
+const TAG='cityroute-commons-images-v10:',TTL=5*24*3600*1000,EMPTY_TTL=60*60*1000;
 // Exact, verified Wikimedia Commons categories for identified Moscow venues.
 const verifiedCategories={
  'Кафе «Пушкинъ»':'Category:Café Pouchkine',
@@ -14,6 +14,7 @@ const verifiedCategories={
  'Парк Горького':'Category:Gorky Park (Moscow)',
  'Государственная Третьяковская галерея':'Category:Main building of Tretyakov Gallery - exterior'
 };
+const base=document.currentScript?.src||document.baseURI;
 const text=(ru,en)=>document.body.classList.contains('english')?en:ru;
 const imageFile=f=>'https://commons.wikimedia.org/wiki/Special:Redirect/file/'+encodeURIComponent(String(f).replace(/^File:/,'').replaceAll(' ','_'))+'?width=900';
 const safeUrl=x=>{try{const u=new URL(String(x||''));return u.protocol==='https:'?u.href:''}catch{return ''}};
@@ -67,7 +68,7 @@ async function wikidataImages(id){
  return photos;
 }
 async function wikipediaImages(wikipedia){
- const match=/^(?:(ru|en|de):)?(.+)$/.exec(String(wikipedia||''));if(!match)return [];
+ const match=/^(?:([a-z]{2,3}(?:-[a-z]+)?):)?(.+)$/u.exec(String(wikipedia||''));if(!match)return [];
  const lang=match[1]||'ru',title=match[2];
  const url='https://'+lang+'.wikipedia.org/w/api.php?'+new URLSearchParams({action:'query',prop:'pageimages|pageprops',redirects:'1',titles:title,pithumbsize:'900',format:'json',origin:'*'});
  const response=await getJson(url);
@@ -98,7 +99,12 @@ function fromStore(key){
  return null;
 }
 async function photos(p){
- const known=window.CityRoutePlaces?.lookup(p.name||p.label);if(known&&(!Number.isFinite(p.lat)||window.CityRoutePlaces.haversine(known,p)<.15))p={...known,...p,tags:{...known.tags,...p.tags}};
+ const bundled=window.CityRouteGuide?.photo(p);
+ if(bundled){
+  const url=new URL('place-images/'+bundled.asset,base).href;
+  sourceByUrl.set(url,{source:bundled.source,credit:bundled.credit});return [url];
+ }
+ const known=window.CityRoutePlaces?.lookup(p.name||p.label);if(known&&Number.isFinite(p.lat)&&window.CityRoutePlaces.haversine(known,p)<.15)p={...known,...p,tags:{...known.tags,...p.tags}};
  // Resolve only this identified Moscow station, never a namesake in another city.
  const label=String(p.name||p.label||'').toLowerCase().replace(/ё/g,'е').trim();
  if(/^(?:метро\s+)?маяковская$/.test(label)&&Number.isFinite(p.lat)&&Number.isFinite(p.lng)&&Math.abs(p.lat-55.769)<.005&&Math.abs(p.lng-37.596)<.005&&!p.tags?.wikipedia){
@@ -109,12 +115,12 @@ async function photos(p){
  if(pendingPhotos.has(key))return pendingPhotos.get(key);
  const pending=(async()=>{
   const tags=p.tags||{},found=[];
-  if(p.name==='«Шава-гриль» в Ясенево'){
+  if(known?.id===p.id&&p.name==='«Шава-гриль» в Ясенево'){
     found.push(record('https://img03.rl0.ru/afisha/e900x500q85i/s3.afisha.ru/mediastorage/52/a7/1764a4488b8e4d2081dda9b2a752.jpg','https://www.afisha.ru/msk/restaurant/shava-gril-442915/','Афиша · Шава-гриль'));
   }
   for(const item of Array.isArray(p.photos)?p.photos:[]){
     const url=typeof item==='string'?item:item?.url;
-    if(safeUrl(url))found.push(record(url,item?.source||p.source||url,item?.credit||p.name));
+    if(safeUrl(url))found.push(record(url,item?.source||p.source||url,item?.credit||p.name||'Photo'));
   }
   if(tags.image){
    for(const raw of String(tags.image).split(';')){
@@ -123,7 +129,7 @@ async function photos(p){
    }
   }
   if(tags.wikimedia_commons?.startsWith('File:'))found.push(record(imageFile(tags.wikimedia_commons),sourceFile(tags.wikimedia_commons)));
-  const source=tags.wikimedia_commons||verifiedCategories[p.name];
+  const source=tags.wikimedia_commons||(known&&window.CityRoutePlaces.haversine(known,p)<.15?verifiedCategories[p.name]:'');
   if(!found.length&&tags.wikipedia)try{found.push(...await wikipediaImages(tags.wikipedia))}catch{}
   if(!found.length&&source?.startsWith('Category:'))try{found.push(...await categoryImages(source))}catch{}
   if(!found.length&&tags.wikidata)try{found.push(...await wikidataImages(tags.wikidata))}catch{}
@@ -139,13 +145,23 @@ const thumbnailUrl=url=>{
  return url.replace(/([?&])width=\d+/,'$1width=180');
 };
 
+function illustration(p){
+ const kind=({food:'food',parks:'parks',water:'water',culture:'culture',sights:'sights',art:'culture',books:'culture',malls:'sights'})[p?.type]||'sights';
+ const img=document.createElement('img');img.className='place-illustration';img.alt=text('Иллюстрация','Illustration');img.src=new URL('place-images/'+kind+'.svg',base).href;
+ return img;
+}
+function credit(root,url){
+ let link=root.querySelector('.image-credit');
+ if(!link){link=document.createElement('a');link.className='image-credit';root.append(link)}
+ const c=sourceByUrl.get(url);link.href=c?.source||url;link.textContent='© '+(c?.credit||text('Источник','Source'));link.target='_blank';link.rel='noopener noreferrer';
+}
 const locationUrl=p=>'https://yandex.ru/maps/?'+new URLSearchParams({ll:p.lng+','+p.lat,z:'17',text:p.name}).toString();
 const node=(tag,cls,content)=>{const el=document.createElement(tag);if(cls)el.className=cls;if(content!==undefined)el.textContent=content;return el};
 function render(places,root,{tr,focus}){
  root.replaceChildren();
  for(const [i,p] of places.entries()){
   const card=node('article','place-photo-card'),media=node('div','place-photo-media'),details=node('div','place-photo-info');
-  const placeholder=node('div','place-photo-placeholder','📷');
+  const placeholder=illustration(p);
   const caption=node('span','place-photo-caption',tr('Подбираем фотографии места…','Looking for verified photos…'));
   media.append(placeholder,caption);
   const count=node('span','place-photo-index',String(i+1).padStart(2,'0'));
@@ -208,25 +224,23 @@ function render(places,root,{tr,focus}){
 function renderInline(p,root){
  const rail=node('div','cityroute-stop-gallery');
  rail.setAttribute('aria-label',text('Фотографии: ','Photos: ')+(p.name||p.label||''));
- const status=node('p','stop-photo-status',text('Загружаем фото места…','Loading place photo…'));root.prepend(status);
+ const placeholder=illustration(p);root.prepend(placeholder);
  void photos(p).then(urls=>{
-  if(!root.isConnected)return;
-  if(!urls.length){status.textContent=text('Фото места пока нет · открой фотографии в Яндексе','No place photo yet · view photos in Yandex');return;}
-  status.hidden=true;
+  if(!root.isConnected||!urls.length)return;
   for(const [i,url] of urls.entries()){
    const figure=node('figure','cityroute-stop-photo');
    const link=node('a');link.href=sourceByUrl.get(url)?.source||url;
    link.target='_blank';link.rel='noopener noreferrer';
    const img=node('img');img.alt=(p.name||p.label||'')+' · '+text('фото ','photo ')+(i+1);
    img.loading='lazy';img.decoding='async';img.referrerPolicy='no-referrer';
-   img.onload=()=>{const fallback=root.querySelector('.stop-photo-fallback-link');if(fallback)fallback.hidden=true;};
-   img.onerror=()=>{figure.remove();if(!rail.children.length){rail.remove();const fallback=root.querySelector('.stop-photo-fallback-link');if(fallback)fallback.hidden=false;status.hidden=false;status.textContent=text('Фото недоступно · открой фотографии в Яндексе','Photo unavailable · view photos in Yandex');}};
+   img.onload=()=>{placeholder.hidden=true;const fallback=root.querySelector('.stop-photo-fallback-link');if(fallback)fallback.hidden=true;};
+   img.onerror=()=>{figure.remove();if(!rail.children.length){rail.remove();placeholder.hidden=false;const fallback=root.querySelector('.stop-photo-fallback-link');if(fallback)fallback.hidden=false;}};
    img.src=url;link.append(img);
    const credit=node('figcaption','',sourceByUrl.get(url)?.credit||p.name);
    figure.append(link,credit);rail.append(figure);
   }
   root.prepend(rail);
- }).catch(()=>{status.hidden=false;status.textContent=text('Не удалось загрузить фото','Could not load photo');});
+ }).catch(()=>{});
 }
-window.CityRoutePhotos={photos,render,renderInline,sourceByUrl};
+window.CityRoutePhotos={photos,render,renderInline,sourceByUrl,illustration,credit};
 })();

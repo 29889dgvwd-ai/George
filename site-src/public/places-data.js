@@ -184,7 +184,7 @@ const items=raw.map(([name,type,category,lat,lng,wiki,address],i)=>({
 const norm=s=>String(s||'').toLocaleLowerCase('ru').replace(/ё/g,'е').replace(/[«»"']/g,'').replace(/[^\p{L}\p{N} ]/gu,' ').replace(/\s+/g,' ').trim();
 function haversine(a,b){
  if(!a||!b||!Number.isFinite(a.lat)||!Number.isFinite(a.lng))return Infinity;
- const y=(b.lat-a.lat)*111.2,x=(b.lng-a.lng)*111.2*Math.cos(a.lat*Math.PI/180);
+ const y=(b.lat-a.lat)*111.2,x=(((b.lng-a.lng+540)%360)-180)*111.2*Math.cos((a.lat+b.lat)*Math.PI/360);
  return Math.hypot(x,y);
 }
 function metroLookup(q){
@@ -217,10 +217,10 @@ function selectStops(pool,targets,{start,end,style='all',interests=[],rain=false
  const foodInterests=interests.filter(k=>['cafe','restaurant','dessert'].includes(k));
  const scenicInterests=interests.filter(k=>!foodInterests.includes(k));
  const foodWanted=!skipFood; // One optional meal stop, removable in the itinerary.
- const available=p=>!used.has(p.id)&&!used.has(norm(p.name));
+ const available=p=>!used.has(p.id)&&!used.has(norm(p.name))&&[start,end].every(x=>!x||haversine(x,p)>.045);
  const choose=(target,food)=>{
   const choices=pool.filter(p=>available(p)&&(food?p.type==='food':p.type!=='food')&&matches(p,{style:food?'food':style==='food'||foodInterests.length&&!scenicInterests.length?'all':style,interests:food?foodInterests:scenicInterests,rain,avoidMalls}))
-    .map(p=>({p,d:haversine(target,p)})).filter(x=>x.d<=maxDistance).sort((a,b)=>a.d-b.d);
+    .map(p=>({p,d:haversine(target,p)})).filter(x=>x.d<=maxDistance).sort((a,b)=>(a.d-(a.p.check?.label?.length?0.35:0))-(b.d-(b.p.check?.label?.length?0.35:0)));
   const p=choices[0]?.p;if(p){used.add(p.id);used.add(norm(p.name));}return p;
  };
  const result=targets.map(t=>choose(t,false)).filter(Boolean);
